@@ -1,38 +1,70 @@
-import React, { useState } from 'react';
-
-// サンプルの初期データ
-const initialData = [
-  { id: 1, date: '2024-01-01', title: 'お年玉', amount: 10000, type: 'income' },
-  { id: 2, date: '2024-01-02', title: 'カフェ', amount: 500, type: 'expense' },
-  { id: 3, date: '2024-01-03', title: '書籍代', amount: 1500, type: 'expense' },
-];
+import React, { useState, useEffect } from 'react';
+import { supabase } from './supabaseClient'; // 作成したクライアントをインポート
 
 function App() {
-  const [items, setItems] = useState(initialData);
+  const [items, setItems] = useState([]);
   const [inputTitle, setInputTitle] = useState('');
   const [inputAmount, setInputAmount] = useState('');
-  const [inputType, setInputType] = useState('expense'); // expense(支出) or income(収入)
+  const [inputType, setInputType] = useState('expense');
+  const [loading, setLoading] = useState(true);
 
-  // 追加ボタンを押した時の処理
-  const handleAdd = () => {
-    if (inputTitle === '' || inputAmount === '') return;
+  // 1. ページ読み込み時にSupabaseからデータを取得する
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-    const newItem = {
-      id: Date.now(), // 一時的なIDとして現在時刻を使用
-      date: new Date().toISOString().split('T')[0], // 今日の日付
-      title: inputTitle,
-      amount: parseInt(inputAmount),
-      type: inputType,
-    };
+  const fetchData = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('records')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-    setItems([newItem, ...items]); // 新しいアイテムをリストの先頭に追加
-    setInputTitle('');
-    setInputAmount('');
+    if (error) {
+      console.error('データ取得エラー:', error);
+    } else {
+      setItems(data);
+    }
+    setLoading(false);
   };
 
-  // 削除ボタンを押した時の処理
-  const handleDelete = (id) => {
-    setItems(items.filter((item) => item.id !== id));
+  // 2. データを追加する処理
+  const handleAdd = async () => {
+    if (inputTitle === '' || inputAmount === '') return;
+
+    const { data, error } = await supabase
+      .from('records')
+      .insert([
+        { 
+          title: inputTitle, 
+          amount: parseInt(inputAmount), 
+          type: inputType 
+        }
+      ])
+      .select(); // 追加したデータを取得する
+
+    if (error) {
+      console.error('追加エラー:', error);
+      alert('保存に失敗しました。RLS設定を確認してください。');
+    } else if (data) {
+      setItems([data[0], ...items]); // リストの先頭に追加
+      setInputTitle('');
+      setInputAmount('');
+    }
+  };
+
+  // 3. データを削除する処理
+  const handleDelete = async (id) => {
+    const { error } = await supabase
+      .from('records')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('削除エラー:', error);
+    } else {
+      setItems(items.filter((item) => item.id !== id));
+    }
   };
 
   // 合計金額の計算
@@ -42,23 +74,19 @@ function App() {
 
   return (
     <div style={{ maxWidth: '600px', margin: '2rem auto', padding: '1rem', fontFamily: 'sans-serif' }}>
-      <h1>👛 シンプル家計簿</h1>
+      <h1>👛 Supabase家計簿</h1>
 
       {/* 入力エリア */}
       <div style={{ border: '1px solid #ccc', padding: '1rem', borderRadius: '8px', marginBottom: '2rem' }}>
         <h3>新規入力</h3>
         <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-          <select 
-            value={inputType} 
-            onChange={(e) => setInputType(e.target.value)}
-            style={{ padding: '8px' }}
-          >
+          <select value={inputType} onChange={(e) => setInputType(e.target.value)} style={{ padding: '8px' }}>
             <option value="expense">支出</option>
             <option value="income">収入</option>
           </select>
           <input
             type="text"
-            placeholder="項目（例: ランチ）"
+            placeholder="項目"
             value={inputTitle}
             onChange={(e) => setInputTitle(e.target.value)}
             style={{ padding: '8px', flex: 1 }}
@@ -75,7 +103,7 @@ function App() {
           onClick={handleAdd}
           style={{ width: '100%', padding: '10px', background: '#0070f3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
         >
-          追加する
+          保存する
         </button>
       </div>
 
@@ -87,22 +115,28 @@ function App() {
       </div>
 
       {/* リスト表示エリア */}
-      <ul style={{ listStyle: 'none', padding: 0 }}>
-        {items.map((item) => (
-          <li key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', padding: '10px 0' }}>
-            <div>
-              <span style={{ marginRight: '10px', color: '#888', fontSize: '0.8rem' }}>{item.date}</span>
-              <span>{item.title}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ color: item.type === 'income' ? 'green' : 'red', fontWeight: 'bold' }}>
-                {item.type === 'income' ? '+' : '-'}{item.amount.toLocaleString()}円
-              </span>
-              <button onClick={() => handleDelete(item.id)} style={{ background: '#ff4d4f', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: '4px 8px' }}>削除</button>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {loading ? (
+        <p>読み込み中...</p>
+      ) : (
+        <ul style={{ listStyle: 'none', padding: 0 }}>
+          {items.map((item) => (
+            <li key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', padding: '10px 0' }}>
+              <div>
+                <span style={{ marginRight: '10px', color: '#888', fontSize: '0.8rem' }}>
+                  {new Date(item.created_at).toLocaleDateString()}
+                </span>
+                <span>{item.title}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ color: item.type === 'income' ? 'green' : 'red', fontWeight: 'bold' }}>
+                  {item.type === 'income' ? '+' : '-'}{item.amount.toLocaleString()}円
+                </span>
+                <button onClick={() => handleDelete(item.id)} style={{ background: '#ff4d4f', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: '4px 8px' }}>削除</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
