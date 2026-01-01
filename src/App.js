@@ -4,12 +4,15 @@ import { supabase } from './supabaseClient';
 import TransactionForm from './components/TransactionForm';
 import MoneyFlow from './components/MoneyFlow';
 import Dashboard from './components/Dashboard';
+import CalendarView from './components/CalendarView';
+import EditTransactionModal from './components/EditTransactionModal';
 import { Home, PlusCircle, BarChart2, List, ChevronLeft, ChevronRight } from 'lucide-react';
 
 function App() {
   const [transactions, setTransactions] = useState([]);
   const [currentDate, setCurrentDate] = useState(new Date()); // 表示中の月
   const [activeTab, setActiveTab] = useState('home'); // 現在のタブ (home, input, analysis, history)
+  const [editingTransaction, setEditingTransaction] = useState(null); // 編集中の取引
 
   // データ取得
   const fetchData = async () => {
@@ -51,17 +54,31 @@ function App() {
       case 'home':
         return (
           <>
-            {/* 今月のサマリーカード */}
-            <div className="card" style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '12px', color: '#888' }}>今月の残高</div>
-              <div style={{ fontSize: '32px', fontWeight: 'bold', margin: '10px 0', color: (totalIncome - totalExpense) >= 0 ? '#333' : '#ff6b6b' }}>
+            {/* 今月のサマリーカード - 改善版 */}
+            <div className="card summary-card" style={{ margin: '0 16px 16px' }}>
+              <div className="balance-label">今月の残高</div>
+              <div className="balance-amount">
                 ¥{(totalIncome - totalExpense).toLocaleString()}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', fontSize: '14px' }}>
-                <span style={{ color: 'var(--income)' }}>収入 ¥{totalIncome.toLocaleString()}</span>
-                <span style={{ color: 'var(--expense)' }}>支出 ¥{totalExpense.toLocaleString()}</span>
+              <div className="balance-details">
+                <div className="balance-detail-item">
+                  <div className="balance-detail-label">収入</div>
+                  <div style={{ fontSize: '18px', fontWeight: '700' }}>
+                    ¥{totalIncome.toLocaleString()}
+                  </div>
+                </div>
+                <div className="balance-detail-item">
+                  <div className="balance-detail-label">支出</div>
+                  <div style={{ fontSize: '18px', fontWeight: '700' }}>
+                    ¥{totalExpense.toLocaleString()}
+                  </div>
+                </div>
               </div>
             </div>
+            
+            {/* カレンダービュー */}
+            <CalendarView transactions={monthlyTransactions} currentDate={currentDate} />
+            
             {/* まる見えフロー */}
             <MoneyFlow transactions={monthlyTransactions} />
           </>
@@ -84,23 +101,47 @@ function App() {
 
       case 'history':
         return (
-          <div className="card">
-            <div className="card-title"><List size={20} /> 今月の明細</div>
-            <div>
-              {monthlyTransactions.map(t => (
-                <div key={t.id} className="history-item">
-                  <div>
-                    <div className="history-loc">{t.location}</div>
-                    <div className="history-meta">{t.date} · {t.content}</div>
+          <>
+            <div className="card">
+              <div className="card-title"><List size={20} /> 今月の明細</div>
+              <div>
+                {monthlyTransactions.map(t => (
+                  <div 
+                    key={t.id} 
+                    className="history-item"
+                    onClick={() => setEditingTransaction(t)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div>
+                      <div className="history-loc">{t.location}</div>
+                      <div className="history-meta">{t.date} · {t.content}</div>
+                    </div>
+                    <div className={t.type === 'income' ? 'amount-plus' : 'amount-minus'}>
+                      {t.type === 'income' ? '+' : '-'} ¥{t.amount.toLocaleString()}
+                    </div>
                   </div>
-                  <div className={t.type === 'income' ? 'amount-plus' : 'amount-minus'}>
-                    {t.type === 'income' ? '+' : '-'} ¥{t.amount.toLocaleString()}
+                ))}
+                {monthlyTransactions.length === 0 && (
+                  <div className="empty-state">
+                    <div className="empty-state-icon">📋</div>
+                    <div className="empty-state-text">まだ取引がありません</div>
                   </div>
-                </div>
-              ))}
-              {monthlyTransactions.length === 0 && <p style={{textAlign:'center', color:'#ccc', padding:'20px'}}>データがありません</p>}
+                )}
+              </div>
             </div>
-          </div>
+            
+            {/* 編集モーダル */}
+            {editingTransaction && (
+              <EditTransactionModal
+                transaction={editingTransaction}
+                onClose={() => setEditingTransaction(null)}
+                onUpdate={() => {
+                  fetchData();
+                  setEditingTransaction(null);
+                }}
+              />
+            )}
+          </>
         );
 
       default:
