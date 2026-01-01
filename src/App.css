@@ -1,38 +1,258 @@
-.App {
-  text-align: center;
+/* src/App.css */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+
+:root {
+  --primary: #ff9f43; /* マネーフォワード風のオレンジ */
+  --secondary: #00d2d3; /* アクセントの青緑 */
+  --bg-color: #f7f9fc;
+  --text-main: #333;
+  --text-sub: #888;
+  --white: #ffffff;
+  --income: #2ecc71;
+  --expense: #ff6b6b;
+  --radius: 16px;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+body {
+  background-color: var(--bg-color);
+  font-family: 'Noto Sans JP', sans-serif;
+  color: var(--text-main);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+.container {
+  max-width: 600px; /* スマホで見やすい幅に制限 */
+  margin: 0 auto;
+  padding: 20px;
+  padding-bottom: 80px; /* 下部ナビ用に余白 */
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+/* ヘッダー */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+}
+
+/* カード共通デザイン */
+.card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  margin-bottom: 20px;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* フォーム周り */
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.input-group label {
+  font-size: 12px;
+  color: var(--text-sub);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.input-field {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  font-size: 16px; /* スマホでズームしないサイズ */
+  box-sizing: border-box;
+  background: #fafafa;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: #fff;
+}
+
+.toggle-group {
+  display: flex;
+  background: #eee;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.toggle-btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-weight: bold;
+  color: #666;
+  cursor: pointer;
+}
+
+.toggle-btn.active-income { background: var(--income); color: white; }
+.toggle-btn.active-expense { background: var(--expense); color: white; }
+
+.submit-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 16px;
+  border-radius: 50px; /* 丸いボタン */
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(255, 159, 67, 0.4);
+  margin-top: 10px;
+}
+
+/* サジェストリスト */
+.suggestions {
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  margin-top: 4px;
+  position: absolute;
+  width: 100%;
+  z-index: 10;
+  box-shadow: var(--shadow);
+}
+.suggestion-item {
+  padding: 12px;
+  border-bottom: 1px solid #f5f5f5;
+  cursor: pointer;
+}
+
+/* フローチャート */
+.flow-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.flow-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.flow-bar {
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #333;
+}
+
+/* 履歴リスト */
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f5f5f5;
+}
+.history-meta { font-size: 12px; color: var(--text-sub); }
+.history-loc { font-weight: 600; font-size: 14px; }
+.amount-plus { color: var(--income); font-weight: bold; }
+.amount-minus { color: var(--expense); font-weight: bold; }
+
+/* スマホ対応の微調整 */
+@media (max-width: 480px) {
+  .container { padding: 16px; }
+  .card { padding: 16px; }
+}
+
+/* --- ここから下を追加・上書き --- */
+
+/* ヘッダーの月選択 */
+.month-selector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: var(--primary);
+  color: white;
+  padding: 15px;
+  border-radius: var(--radius);
+  margin-bottom: 20px;
+  box-shadow: 0 4px 10px rgba(255, 159, 67, 0.3);
+}
+
+.month-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.current-month {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+/* ボトムナビゲーション（タブ） */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: white;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: space-around;
+  padding: 10px 0;
+  padding-bottom: max(10px, env(safe-area-inset-bottom)); /* iPhoneの下部バー対応 */
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+  z-index: 100;
+}
+
+.nav-item {
+  border: none;
+  background: none;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  font-size: 10px;
+  color: #ccc;
+  gap: 4px;
+  cursor: pointer;
+  width: 60px;
 }
 
-.App-link {
-  color: #61dafb;
+.nav-item.active {
+  color: var(--primary);
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* メインコンテンツがナビに隠れないようにする */
+.container {
+  padding-bottom: 100px;
 }

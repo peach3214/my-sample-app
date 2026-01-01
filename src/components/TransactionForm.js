@@ -1,11 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { Plus } from 'lucide-react';
+import { PlusCircle } from 'lucide-react';
 
 export default function TransactionForm({ onAdded, existingTransactions }) {
   const [formData, setFormData] = useState({
-    type: 'expense',
-    category_type: 'variable',
+    type: 'expense', // 初期値は支出
     location: '',
     content: '',
     amount: '',
@@ -13,60 +12,113 @@ export default function TransactionForm({ onAdded, existingTransactions }) {
   });
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // 履歴からのレコメンド機能
   const suggestions = useMemo(() => {
+    if (!formData.location) return [];
     const counts = {};
     existingTransactions.forEach(t => {
       counts[t.location] = (counts[t.location] || 0) + 1;
     });
-    return Object.entries(counts)
-      .sort(([, a], [, b]) => b - a)
-      .map(([loc]) => loc)
+    return Object.keys(counts)
       .filter(loc => loc.includes(formData.location) && loc !== formData.location)
+      .sort((a, b) => counts[b] - counts[a])
       .slice(0, 5);
   }, [existingTransactions, formData.location]);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    // ログイン機能未実装の場合は、SQLで入れたサンプルのuser_idを直接指定するか、
-    // RLSを「全員許可」にしてuser_idを適当なUUIDにする必要があります。
-    const { error } = await supabase.from('transactions').insert([{
-      ...formData,
-      amount: parseInt(formData.amount),
-      user_id: user?.id || '00000000-0000-0000-0000-000000000000' 
-    }]);
+  e.preventDefault();
+  if (!formData.location || !formData.amount) return;
 
-    if (error) alert('エラー: ' + error.message);
-    else {
-      setFormData({ ...formData, location: '', content: '', amount: '' });
-      onAdded();
-    }
-  };
+  // 修正：user_id を含めない、または null を送るようにする
+  const { error } = await supabase.from('transactions').insert([{
+    type: formData.type,
+    location: formData.location,
+    content: formData.content,
+    amount: parseInt(formData.amount),
+    date: formData.date,
+    category_type: 'variable' // デフォルト値
+    // user_id は書かなくてOK（DB側で自動的にnullまたはデフォルトになります）
+  }]);
+
+  if (error) {
+    alert('保存エラー: ' + error.message);
+  } else {
+    setFormData({ ...formData, location: '', content: '', amount: '' });
+    onAdded();
+  }
+};
 
   return (
-    <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
-      <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Plus size={20} /> 新規入力</h3>
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px' }}>
-        <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
-          <option value="expense">支出</option>
-          <option value="income">収入</option>
-        </select>
-        <div style={{ position: 'relative' }}>
-          <input
-            type="text" placeholder="場所" value={formData.location}
-            onChange={e => { setFormData({...formData, location: e.target.value}); setShowSuggestions(true); }}
+    <div className="card">
+      <div className="card-title"><PlusCircle size={20} color="#ff9f43"/> 入力する</div>
+      
+      <form onSubmit={handleSubmit} className="form-grid">
+        {/* 入出金切り替えタブ */}
+        <div className="toggle-group">
+          <button
+            type="button"
+            className={`toggle-btn ${formData.type === 'expense' ? 'active-expense' : ''}`}
+            onClick={() => setFormData({...formData, type: 'expense'})}
+          >
+            支出
+          </button>
+          <button
+            type="button"
+            className={`toggle-btn ${formData.type === 'income' ? 'active-income' : ''}`}
+            onClick={() => setFormData({...formData, type: 'income'})}
+          >
+            収入
+          </button>
+        </div>
+
+        <div className="input-group">
+          <label>日付</label>
+          <input 
+            type="date" 
+            className="input-field"
+            value={formData.date}
+            onChange={e => setFormData({...formData, date: e.target.value})}
           />
+        </div>
+
+        <div className="input-group" style={{ position: 'relative' }}>
+          <label>場所・お店</label>
+          <input 
+            type="text" 
+            className="input-field"
+            placeholder="例: セブンイレブン"
+            value={formData.location}
+            onChange={e => {
+              setFormData({...formData, location: e.target.value});
+              setShowSuggestions(true);
+            }}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+          />
+          {/* レコメンド表示 */}
           {showSuggestions && suggestions.length > 0 && (
-            <div style={{ position: 'absolute', background: 'white', border: '1px solid #ccc', width: '100%', zIndex: 10 }}>
+            <div className="suggestions">
               {suggestions.map(s => (
-                <div key={s} onClick={() => setFormData({...formData, location: s})} style={{ padding: '5px', cursor: 'pointer' }}>{s}</div>
+                <div key={s} className="suggestion-item" onClick={() => setFormData({...formData, location: s})}>
+                  {s}
+                </div>
               ))}
             </div>
           )}
         </div>
-        <input type="number" placeholder="金額" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
-        <button type="submit" style={{ background: '#0070f3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>保存</button>
+
+        <div className="input-group">
+          <label>金額 (円)</label>
+          <input 
+            type="number" 
+            className="input-field"
+            placeholder="0"
+            style={{ fontSize: '20px', fontWeight: 'bold' }}
+            value={formData.amount}
+            onChange={e => setFormData({...formData, amount: e.target.value})}
+          />
+        </div>
+
+        <button type="submit" className="submit-btn">記録する</button>
       </form>
     </div>
   );
