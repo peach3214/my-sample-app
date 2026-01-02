@@ -89,7 +89,7 @@ export default function CalendarView({ transactions, currentDate }) {
 
           const data = dailyData[day] || { income: 0, expense: 0 };
           const balance = data.income - data.expense;
-          const hasData = data.income > 0 || data.expense > 0;
+          const hasExpense = data.expense > 0;
           
           // 今日かどうか
           const today = new Date();
@@ -109,13 +109,11 @@ export default function CalendarView({ transactions, currentDate }) {
                 borderRadius: '8px',
                 background: isToday 
                   ? 'var(--primary)' 
-                  : hasData 
-                    ? balance >= 0 
-                      ? 'rgba(52, 199, 89, 0.1)' 
-                      : 'rgba(255, 59, 48, 0.1)'
+                  : hasExpense 
+                    ? 'rgba(255, 59, 48, 0.1)'
                     : 'transparent',
-                border: isToday ? '2px solid var(--primary)' : hasData ? '1px solid ' + (balance >= 0 ? 'rgba(52, 199, 89, 0.3)' : 'rgba(255, 59, 48, 0.3)') : '1px solid var(--divider)',
-                cursor: hasData ? 'pointer' : 'default',
+                border: isToday ? '2px solid var(--primary)' : hasExpense ? '1px solid rgba(255, 59, 48, 0.3)' : '1px solid var(--divider)',
+                cursor: hasExpense ? 'pointer' : 'default',
                 transition: 'all 0.2s ease',
                 position: 'relative'
               }}
@@ -124,23 +122,19 @@ export default function CalendarView({ transactions, currentDate }) {
                 fontSize: '13px',
                 fontWeight: isToday ? '700' : '600',
                 color: isToday ? 'white' : 'var(--text-main)',
-                marginBottom: hasData ? '2px' : '0'
+                marginBottom: hasExpense ? '2px' : '0'
               }}>
                 {day}
               </div>
               
-              {hasData && (
+              {hasExpense && (
                 <div style={{
                   fontSize: '9px',
                   fontWeight: '700',
-                  color: isToday 
-                    ? 'white' 
-                    : balance >= 0 
-                      ? 'var(--income)' 
-                      : 'var(--expense)',
+                  color: isToday ? 'white' : 'var(--expense)',
                   letterSpacing: '-0.2px'
                 }}>
-                  {balance >= 0 ? '+' : ''}{(balance / 1000).toFixed(0)}k
+                  -{(data.expense / 1000).toFixed(0)}k
                 </div>
               )}
             </div>
@@ -162,11 +156,11 @@ export default function CalendarView({ transactions, currentDate }) {
             width: '12px',
             height: '12px',
             borderRadius: '4px',
-            background: 'rgba(52, 199, 89, 0.3)',
-            border: '1px solid rgba(52, 199, 89, 0.5)'
+            background: 'rgba(255, 59, 48, 0.3)',
+            border: '1px solid rgba(255, 59, 48, 0.5)'
           }} />
           <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>
-            黒字
+            支出あり
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -174,11 +168,11 @@ export default function CalendarView({ transactions, currentDate }) {
             width: '12px',
             height: '12px',
             borderRadius: '4px',
-            background: 'rgba(255, 59, 48, 0.3)',
-            border: '1px solid rgba(255, 59, 48, 0.5)'
+            background: 'var(--primary)',
+            border: '1px solid var(--primary)'
           }} />
           <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>
-            赤字
+            今日
           </span>
         </div>
       </div>
