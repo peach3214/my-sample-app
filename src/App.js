@@ -7,13 +7,19 @@ import Dashboard from './components/Dashboard';
 import CalendarView from './components/CalendarView';
 import EditTransactionModal from './components/EditTransactionModal';
 import ExpenseBreakdown from './components/ExpenseBreakdown';
-import { Home, PlusCircle, BarChart2, List, ChevronLeft, ChevronRight } from 'lucide-react';
+import NotificationSettings from './components/NotificationSettings';
+import { useNotifications } from './hooks/useNotifications';
+import { Home, PlusCircle, BarChart2, List, ChevronLeft, ChevronRight, Bell } from 'lucide-react';
 
 function App() {
   const [transactions, setTransactions] = useState([]);
   const [currentDate, setCurrentDate] = useState(new Date()); // 表示中の月
   const [activeTab, setActiveTab] = useState('home'); // 現在のタブ (home, input, analysis, history)
   const [editingTransaction, setEditingTransaction] = useState(null); // 編集中の取引
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false); // 通知設定モーダル
+  
+  // 通知機能を初期化
+  const { notifyTransactionAdded } = useNotifications();
 
   // データ取得
   const fetchData = async () => {
@@ -28,7 +34,39 @@ function App() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+
+    // Supabaseのリアルタイム購読を設定
+    const channel = supabase
+      .channel('transactions_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'transactions'
+        },
+        (payload) => {
+          console.log('新しい取引が追加されました:', payload);
+          
+          // 通知設定を確認
+          const settings = JSON.parse(localStorage.getItem('notificationSettings') || '{"transactionAdded": true}');
+          
+          // 通知を表示
+          if (settings.transactionAdded && Notification.permission === 'granted') {
+            notifyTransactionAdded(payload.new);
+          }
+          
+          // データを再取得
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    // クリーンアップ
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [notifyTransactionAdded]);
 
   // 月の切り替え操作
   const changeMonth = (diff) => {
@@ -165,6 +203,13 @@ function App() {
             {currentDate.getFullYear()}年 {currentDate.getMonth() + 1}月
           </span>
           <button className="month-btn" onClick={() => changeMonth(1)}><ChevronRight size={20}/></button>
+          <button 
+            className="month-btn" 
+            onClick={() => setShowNotificationSettings(true)}
+            style={{ marginLeft: '8px' }}
+          >
+            <Bell size={20}/>
+          </button>
         </div>
       )}
 
@@ -207,6 +252,11 @@ function App() {
           <span>履歴</span>
         </button>
       </nav>
+
+      {/* 通知設定モーダル */}
+      {showNotificationSettings && (
+        <NotificationSettings onClose={() => setShowNotificationSettings(false)} />
+      )}
     </div>
   );
 }
