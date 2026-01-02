@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import { Save } from 'lucide-react';
+import TagSelector from './TagSelector';
 
 export default function TransactionForm({ onAdded, existingTransactions }) {
   const [formData, setFormData] = useState({
@@ -9,6 +10,7 @@ export default function TransactionForm({ onAdded, existingTransactions }) {
     content: '',
     amount: '',
     date: new Date().toISOString().split('T')[0],
+    tags: [] // タグを追加
   });
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,28 +34,37 @@ export default function TransactionForm({ onAdded, existingTransactions }) {
 
     setIsSubmitting(true);
 
-    const { error } = await supabase.from('transactions').insert([{
-      type: formData.type,
-      location: formData.location,
-      content: formData.content,
-      amount: parseInt(formData.amount),
-      date: formData.date,
-      category_type: 'variable'
-    }]);
+    try {
+      const { data, error } = await supabase.from('transactions').insert([{
+        type: formData.type,
+        location: formData.location,
+        content: formData.content,
+        amount: parseInt(formData.amount),
+        date: formData.date,
+        category_type: 'variable',
+        tags: formData.tags // タグを保存
+      }]).select();
 
-    setIsSubmitting(false);
+      setIsSubmitting(false);
 
-    if (error) {
-      alert('保存エラー: ' + error.message);
-    } else {
-      // フォームをリセット（金額と場所のみ）
-      setFormData({ 
-        ...formData, 
-        location: '', 
-        content: '', 
-        amount: '' 
-      });
-      onAdded();
+      if (error) {
+        console.error('保存エラー:', error);
+        alert('保存エラー: ' + error.message);
+      } else if (data && data.length > 0) {
+        // フォームをリセット
+        setFormData({ 
+          ...formData, 
+          location: '', 
+          content: '', 
+          amount: '',
+          tags: [] // タグもリセット
+        });
+        onAdded();
+      }
+    } catch (err) {
+      console.error('予期しないエラー:', err);
+      setIsSubmitting(false);
+      alert('保存中にエラーが発生しました');
     }
   };
 
@@ -147,6 +158,14 @@ export default function TransactionForm({ onAdded, existingTransactions }) {
             style={{ fontSize: '24px', fontWeight: 'bold', textAlign: 'right' }}
             value={formData.amount}
             onChange={e => setFormData({...formData, amount: e.target.value})}
+          />
+        </div>
+
+        {/* タグセレクター */}
+        <div className="input-group">
+          <TagSelector
+            selectedTags={formData.tags}
+            onChange={(tags) => setFormData({...formData, tags})}
           />
         </div>
 

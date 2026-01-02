@@ -12,8 +12,6 @@ import TagMaster from './components/TagMaster';
 import TagSummary from './components/TagSummary';
 import TransactionFilter from './components/TransactionFilter';
 import BudgetTracker from './components/BudgetTracker';
-import PeriodFilter from './components/PeriodFilter';
-import QuickEntry from './components/QuickEntry';
 import { useNotifications } from './hooks/useNotifications';
 import { Home, PlusCircle, BarChart2, List, ChevronLeft, ChevronRight, Bell, Tag, Settings } from 'lucide-react';
 
@@ -25,7 +23,6 @@ function App() {
   const [showNotificationSettings, setShowNotificationSettings] = useState(false); // 通知設定モーダル
   const [showTagMaster, setShowTagMaster] = useState(false); // タグマスタモーダル
   const [filteredHistoryTransactions, setFilteredHistoryTransactions] = useState([]); // フィルター済み履歴
-  const [filteredAnalysisTransactions, setFilteredAnalysisTransactions] = useState([]); // フィルター済み分析データ
   
   // 通知機能を初期化
   const { notifyTransactionAdded } = useNotifications();
@@ -139,50 +136,23 @@ function App() {
         );
 
       case 'input':
-        const handleQuickAdd = async (data) => {
-          const { error } = await supabase.from('transactions').insert([{
-            ...data,
-            content: '',
-            category_type: 'variable',
-            tags: []
-          }]);
-
-          if (error) {
-            alert('保存エラー: ' + error.message);
-          } else {
-            fetchData();
-          }
-        };
-
         return (
-          <>
-            <QuickEntry onQuickAdd={handleQuickAdd} />
-            <TransactionForm 
-              onAdded={() => {
-                fetchData(); // データのみ再取得、タブは切り替えない
-              }} 
-              existingTransactions={transactions} 
-            />
-          </>
+          <TransactionForm 
+            onAdded={() => {
+              fetchData();
+              setActiveTab('home'); // 追加したらホームに戻る
+            }} 
+            existingTransactions={transactions} 
+          />
         );
 
       case 'analysis':
-        // フィルター済みデータまたは全データ
-        const analysisData = filteredAnalysisTransactions.length > 0 || (activeTab === 'analysis' && filteredAnalysisTransactions !== transactions)
-          ? filteredAnalysisTransactions 
-          : transactions;
-
+        // ダッシュボードには「全期間のデータ」を渡して、推移が見れるようにする
         return (
           <>
-            {/* 期間・タグフィルター */}
-            <PeriodFilter
-              transactions={transactions}
-              onFilteredTransactions={setFilteredAnalysisTransactions}
-            />
-
-            <Dashboard transactions={analysisData} />
-            <TagSummary transactions={analysisData} />
-            <ExpenseBreakdown transactions={analysisData} />
+            <Dashboard transactions={transactions} />
+            <TagSummary transactions={monthlyTransactions} />
+            <ExpenseBreakdown transactions={monthlyTransactions} />
           </>
         );
 

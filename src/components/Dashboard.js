@@ -168,7 +168,7 @@ export default function Dashboard({ transactions }) {
                     fontWeight: '800',
                     fontSize: '15px',
                     color: d.balance >= 0 ? 'var(--income)' : 'var(--expense)'
-                  }}>{d.balance >= 0 ? '+' : ''}¥{d.balance.toLocaleString()}</td>
+                  }}>{d.balance >= 0 ? '' : '-'}¥{Math.abs(d.balance).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -236,7 +236,6 @@ export default function Dashboard({ transactions }) {
                 color: data.reduce((sum, d) => sum + d.balance, 0) >= 0 ? 'var(--income)' : 'var(--expense)',
                 letterSpacing: '-0.5px'
               }}>
-                {data.reduce((sum, d) => sum + d.balance, 0) >= 0 ? '+' : ''}
                 ¥{data.reduce((sum, d) => sum + d.balance, 0).toLocaleString()}
               </div>
             </div>

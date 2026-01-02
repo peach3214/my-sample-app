@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import TagSelector from './TagSelector';
 
 export default function EditTransactionModal({ transaction, onClose, onUpdate }) {
   const [formData, setFormData] = useState({
@@ -9,6 +10,7 @@ export default function EditTransactionModal({ transaction, onClose, onUpdate })
     content: transaction.content || '',
     amount: transaction.amount.toString(),
     date: transaction.date,
+    tags: transaction.tags || [] // タグを追加
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -27,6 +29,7 @@ export default function EditTransactionModal({ transaction, onClose, onUpdate })
         content: formData.content,
         amount: parseInt(formData.amount),
         date: formData.date,
+        tags: formData.tags // タグを保存
       })
       .eq('id', transaction.id);
 
@@ -188,6 +191,14 @@ export default function EditTransactionModal({ transaction, onClose, onUpdate })
                 style={{ fontSize: '24px', fontWeight: 'bold', textAlign: 'right' }}
                 value={formData.amount}
                 onChange={e => setFormData({...formData, amount: e.target.value})}
+              />
+            </div>
+
+            {/* タグセレクター */}
+            <div className="input-group">
+              <TagSelector
+                selectedTags={formData.tags}
+                onChange={(tags) => setFormData({...formData, tags})}
               />
             </div>
 
