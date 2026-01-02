@@ -10,12 +10,11 @@ import ExpenseBreakdown from './components/ExpenseBreakdown';
 import NotificationSettings from './components/NotificationSettings';
 import TagMaster from './components/TagMaster';
 import TagSummary from './components/TagSummary';
-import TransactionFilter from './components/TransactionFilter';
 import BudgetTracker from './components/BudgetTracker';
 import PeriodFilter from './components/PeriodFilter';
-import QuickEntry from './components/QuickEntry';
+import TemplateManager from './components/TemplateManager';
 import { useNotifications } from './hooks/useNotifications';
-import { Home, PlusCircle, BarChart2, List, ChevronLeft, ChevronRight, Bell, Tag, Settings } from 'lucide-react';
+import { Home, PlusCircle, BarChart2, List, ChevronLeft, ChevronRight, Bookmark, Tag, Settings } from 'lucide-react';
 
 function App() {
   const [transactions, setTransactions] = useState([]);
@@ -24,6 +23,7 @@ function App() {
   const [editingTransaction, setEditingTransaction] = useState(null); // 編集中の取引
   const [showNotificationSettings, setShowNotificationSettings] = useState(false); // 通知設定モーダル
   const [showTagMaster, setShowTagMaster] = useState(false); // タグマスタモーダル
+  const [showTemplateManager, setShowTemplateManager] = useState(false); // テンプレート管理モーダル
   const [filteredHistoryTransactions, setFilteredHistoryTransactions] = useState([]); // フィルター済み履歴
   const [filteredAnalysisTransactions, setFilteredAnalysisTransactions] = useState([]); // フィルター済み分析データ
   
@@ -95,6 +95,14 @@ function App() {
     return transactions.filter(t => t.date.startsWith(currentMonthStr));
   }, [transactions, currentMonthStr]);
 
+  // 初期表示用（直近50件のみ、パフォーマンス最適化）
+  const recentTransactions = useMemo(() => {
+    const sorted = [...transactions].sort((a, b) => 
+      new Date(b.date) - new Date(a.date)
+    );
+    return sorted.slice(0, 50);
+  }, [transactions]);
+
   // 今月の収支合計
   const totalIncome = monthlyTransactions.filter(t => t.type === 'income').reduce((acc, cur) => acc + cur.amount, 0);
   const totalExpense = monthlyTransactions.filter(t => t.type === 'expense').reduce((acc, cur) => acc + cur.amount, 0);
@@ -139,31 +147,13 @@ function App() {
         );
 
       case 'input':
-        const handleQuickAdd = async (data) => {
-          const { error } = await supabase.from('transactions').insert([{
-            ...data,
-            content: '',
-            category_type: 'variable',
-            tags: []
-          }]);
-
-          if (error) {
-            alert('保存エラー: ' + error.message);
-          } else {
-            fetchData();
-          }
-        };
-
         return (
-          <>
-            <QuickEntry onQuickAdd={handleQuickAdd} />
-            <TransactionForm 
-              onAdded={() => {
-                fetchData(); // データのみ再取得、タブは切り替えない
-              }} 
-              existingTransactions={transactions} 
-            />
-          </>
+          <TransactionForm 
+            onAdded={() => {
+              fetchData(); // データのみ再取得、タブは切り替えない
+            }} 
+            existingTransactions={transactions} 
+          />
         );
 
       case 'analysis':
@@ -187,23 +177,23 @@ function App() {
         );
 
       case 'history':
-        const displayTransactions = filteredHistoryTransactions.length > 0 || activeTab === 'history' 
+        const displayHistory = filteredHistoryTransactions.length > 0 || activeTab === 'history'
           ? filteredHistoryTransactions 
-          : monthlyTransactions;
+          : recentTransactions; // 初期は直近50件
 
         return (
           <>
             <div className="card">
-              <div className="card-title"><List size={20} /> 今月の明細</div>
+              <div className="card-title"><List size={20} /> 取引履歴</div>
               
-              {/* フィルター */}
-              <TransactionFilter 
-                transactions={monthlyTransactions}
+              {/* 期間・タグフィルター（分析タブと同じ） */}
+              <PeriodFilter 
+                transactions={transactions}
                 onFilteredTransactions={setFilteredHistoryTransactions}
               />
               
               <div>
-                {displayTransactions.map(t => (
+                {displayHistory.map(t => (
                   <div 
                     key={t.id} 
                     className="history-item"
@@ -244,11 +234,11 @@ function App() {
                     </div>
                   </div>
                 ))}
-                {displayTransactions.length === 0 && (
+                {displayHistory.length === 0 && (
                   <div className="empty-state">
                     <div className="empty-state-icon">📋</div>
                     <div className="empty-state-text">
-                      {monthlyTransactions.length === 0 ? 'まだ取引がありません' : '条件に一致する取引がありません'}
+                      {transactions.length === 0 ? 'まだ取引がありません' : '条件に一致する取引がありません'}
                     </div>
                   </div>
                 )}
@@ -277,6 +267,39 @@ function App() {
               設定
             </div>
             
+            {/* テンプレート管理ボタン */}
+            <button
+              onClick={() => setShowTemplateManager(true)}
+              style={{
+                width: '100%',
+                padding: '16px',
+                background: 'var(--bg-color)',
+                border: '1px solid var(--divider)',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                marginBottom: '12px',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-elevated)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-color)'}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <Bookmark size={24} color="var(--primary)" />
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: '700', fontSize: '16px', color: 'var(--text-main)' }}>
+                    テンプレート管理
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    よく使う取引を登録
+                  </div>
+                </div>
+              </div>
+              <span style={{ fontSize: '24px', color: 'var(--text-tertiary)' }}>›</span>
+            </button>
+
             {/* タグ管理ボタン */}
             <button
               onClick={() => setShowTagMaster(true)}
@@ -329,7 +352,7 @@ function App() {
               onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-color)'}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <Bell size={24} color="var(--primary)" />
+                <Settings size={24} color="var(--primary)" />
                 <div style={{ textAlign: 'left' }}>
                   <div style={{ fontWeight: '700', fontSize: '16px', color: 'var(--text-main)' }}>
                     通知設定
@@ -351,8 +374,8 @@ function App() {
 
   return (
     <div className="container">
-      {/* ヘッダー（月選択） - ホームと履歴でのみ表示 */}
-      {(activeTab === 'home' || activeTab === 'history') && (
+      {/* ヘッダー（月選択） - ホームでのみ表示 */}
+      {activeTab === 'home' && (
         <div className="month-selector">
           <button className="month-btn" onClick={() => changeMonth(-1)}><ChevronLeft size={20}/></button>
           <span className="current-month">
@@ -418,6 +441,11 @@ function App() {
       {/* タグマスタモーダル */}
       {showTagMaster && (
         <TagMaster onClose={() => setShowTagMaster(false)} />
+      )}
+
+      {/* テンプレート管理モーダル */}
+      {showTemplateManager && (
+        <TemplateManager onClose={() => setShowTemplateManager(false)} />
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { Save } from 'lucide-react';
+import { Save, Bookmark } from 'lucide-react';
 import TagSelector from './TagSelector';
 
 export default function TransactionForm({ onAdded, existingTransactions }) {
@@ -14,6 +14,16 @@ export default function TransactionForm({ onAdded, existingTransactions }) {
   });
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templates, setTemplates] = useState([]);
+
+  // テンプレートを読み込む
+  React.useEffect(() => {
+    const saved = localStorage.getItem('transactionTemplates');
+    if (saved) {
+      setTemplates(JSON.parse(saved));
+    }
+  }, []);
 
   // 履歴からのレコメンド機能
   const suggestions = useMemo(() => {
@@ -27,6 +37,18 @@ export default function TransactionForm({ onAdded, existingTransactions }) {
       .sort((a, b) => counts[b] - counts[a])
       .slice(0, 5);
   }, [existingTransactions, formData.location]);
+
+  // テンプレートを適用
+  const handleApplyTemplate = (template) => {
+    setFormData({
+      ...formData,
+      type: template.type,
+      location: template.location,
+      content: template.content || '',
+      amount: template.amount || ''
+    });
+    setShowTemplates(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -93,6 +115,123 @@ export default function TransactionForm({ onAdded, existingTransactions }) {
             収入
           </button>
         </div>
+
+        {/* テンプレート選択ボタン */}
+        {templates.length > 0 && (
+          <div style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => setShowTemplates(!showTemplates)}
+              style={{
+                width: '100%',
+                padding: '12px',
+                background: 'var(--bg-color)',
+                border: '1px solid var(--divider)',
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '600',
+                color: 'var(--text-main)',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <Bookmark size={16} />
+              テンプレートから選択
+            </button>
+
+            {/* テンプレートドロップダウン */}
+            {showTemplates && (
+              <>
+                <div
+                  style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    zIndex: 999
+                  }}
+                  onClick={() => setShowTemplates(false)}
+                />
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  marginTop: '4px',
+                  background: 'var(--bg-elevated)',
+                  borderRadius: '12px',
+                  boxShadow: 'var(--shadow-strong)',
+                  maxHeight: '300px',
+                  overflowY: 'auto',
+                  zIndex: 1000,
+                  border: '1px solid var(--divider)'
+                }}>
+                  {templates.map(template => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => handleApplyTemplate(template)}
+                      style={{
+                        width: '100%',
+                        padding: '14px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid var(--divider)',
+                        transition: 'background 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-color)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px'
+                      }}>
+                        <div style={{
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          background: template.type === 'income' 
+                            ? 'rgba(52, 199, 89, 0.2)' 
+                            : 'rgba(255, 59, 48, 0.2)',
+                          color: template.type === 'income' ? 'var(--income)' : 'var(--expense)',
+                          fontSize: '11px',
+                          fontWeight: '700'
+                        }}>
+                          {template.type === 'income' ? '収入' : '支出'}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: '700', fontSize: '14px' }}>
+                            {template.name}
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                            {template.location}
+                            {template.content && ` · ${template.content}`}
+                          </div>
+                        </div>
+                        {template.amount && (
+                          <div style={{
+                            fontSize: '14px',
+                            fontWeight: '700',
+                            color: template.type === 'income' ? 'var(--income)' : 'var(--expense)'
+                          }}>
+                            ¥{template.amount}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         <div className="input-group">
           <label>日付</label>
