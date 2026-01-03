@@ -31,6 +31,7 @@ function App() {
   const [showTemplateManager, setShowTemplateManager] = useState(false); // テンプレート管理モーダル
   const [filteredHistoryTransactions, setFilteredHistoryTransactions] = useState([]); // フィルター済み履歴
   const [filteredAnalysisTransactions, setFilteredAnalysisTransactions] = useState([]); // フィルター済み分析データ
+  const [historyPage, setHistoryPage] = useState(1); // 履歴ページ番号
   
   // 通知機能を初期化
   const { notifyTransactionAdded } = useNotifications();
@@ -186,6 +187,13 @@ function App() {
           ? filteredHistoryTransactions 
           : recentTransactions; // 初期は直近50件
 
+        // ページネーション
+        const itemsPerPage = 30;
+        const totalPages = Math.ceil(displayHistory.length / itemsPerPage);
+        const startIndex = (historyPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedHistory = displayHistory.slice(startIndex, endIndex);
+
         return (
           <>
             <div className="card">
@@ -194,11 +202,64 @@ function App() {
               {/* 期間・タグフィルター（分析タブと同じ） */}
               <PeriodFilter 
                 transactions={transactions}
-                onFilteredTransactions={setFilteredHistoryTransactions}
+                onFilteredTransactions={(filtered) => {
+                  setFilteredHistoryTransactions(filtered);
+                  setHistoryPage(1); // フィルター変更時はページをリセット
+                }}
               />
+
+              {/* ページネーション */}
+              {displayHistory.length > itemsPerPage && (
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '12px',
+                  background: 'var(--bg-color)',
+                  borderRadius: '8px',
+                  marginTop: '16px',
+                  marginBottom: '16px'
+                }}>
+                  <button
+                    onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                    disabled={historyPage === 1}
+                    style={{
+                      padding: '8px 16px',
+                      background: historyPage === 1 ? 'var(--bg-elevated)' : 'var(--primary)',
+                      color: historyPage === 1 ? 'var(--text-tertiary)' : 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: historyPage === 1 ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    ◀ 前へ
+                  </button>
+                  <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)' }}>
+                    {historyPage} / {totalPages} ({displayHistory.length}件)
+                  </span>
+                  <button
+                    onClick={() => setHistoryPage(p => Math.min(totalPages, p + 1))}
+                    disabled={historyPage === totalPages}
+                    style={{
+                      padding: '8px 16px',
+                      background: historyPage === totalPages ? 'var(--bg-elevated)' : 'var(--primary)',
+                      color: historyPage === totalPages ? 'var(--text-tertiary)' : 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: historyPage === totalPages ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    次へ ▶
+                  </button>
+                </div>
+              )}
               
               <div>
-                {displayHistory.map(t => (
+                {paginatedHistory.map(t => (
                   <div 
                     key={t.id} 
                     className="history-item"
@@ -239,7 +300,7 @@ function App() {
                     </div>
                   </div>
                 ))}
-                {displayHistory.length === 0 && (
+                {paginatedHistory.length === 0 && (
                   <div className="empty-state">
                     <div className="empty-state-icon">📋</div>
                     <div className="empty-state-text">
