@@ -13,6 +13,17 @@ export default function AssetSnapshotCreator() {
 
   useEffect(() => {
     fetchMasterData();
+
+    // 自動スナップショットイベントを監視
+    const handleAutoSnapshot = () => {
+      handleCreateSnapshot();
+    };
+
+    window.addEventListener('autoSnapshotTriggered', handleAutoSnapshot);
+
+    return () => {
+      window.removeEventListener('autoSnapshotTriggered', handleAutoSnapshot);
+    };
   }, []);
 
   const fetchMasterData = async () => {

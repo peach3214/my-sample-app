@@ -17,6 +17,7 @@ import BankAccountManager from './components/BankAccountManager';
 import StockHoldingManager from './components/StockHoldingManager';
 import AssetSnapshotCreator from './components/AssetSnapshotCreator';
 import AssetChart from './components/AssetChart';
+import AutoSnapshotScheduler from './components/AutoSnapshotScheduler';
 import { useNotifications } from './hooks/useNotifications';
 import { Home, PlusCircle, BarChart2, List, ChevronLeft, ChevronRight, Bookmark, Tag, Settings, Wallet } from 'lucide-react';
 
@@ -267,6 +268,7 @@ function App() {
         return (
           <>
             <AssetChart />
+            <AutoSnapshotScheduler />
             <AssetSnapshotCreator />
             <BankAccountManager />
             <StockHoldingManager />
