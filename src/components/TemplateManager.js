@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Bookmark, Plus, X, Edit2, Trash2 } from 'lucide-react';
-import TagSelector from './TagSelector';
 
 export default function TemplateManager({ onClose }) {
   const [templates, setTemplates] = useState([]);
@@ -114,7 +113,40 @@ export default function TemplateManager({ onClose }) {
 
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px' }}>タグ（最大5個）</label>
-                <TagSelector selectedTagIds={formData.tagIds} onTagsChange={(tagIds) => setFormData({...formData, tagIds})} />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {(() => {
+                    const savedTags = JSON.parse(localStorage.getItem('tagMaster') || '[]');
+                    return savedTags.map(tag => {
+                      const isSelected = formData.tagIds.includes(tag.id);
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setFormData({...formData, tagIds: formData.tagIds.filter(id => id !== tag.id)});
+                            } else if (formData.tagIds.length < 5) {
+                              setFormData({...formData, tagIds: [...formData.tagIds, tag.id]});
+                            }
+                          }}
+                          style={{
+                            padding: '8px 14px',
+                            borderRadius: '20px',
+                            border: isSelected ? 'none' : '1px solid var(--divider)',
+                            background: isSelected ? tag.color : 'transparent',
+                            color: isSelected ? 'white' : 'var(--text-main)',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          {tag.name}
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '12px' }}>

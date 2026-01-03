@@ -18,9 +18,9 @@ export default function MoneyFlow({ transactions }) {
   const totalIn = Object.values(incomeMap).reduce((a, b) => a + b, 0) || 1;
   const totalOut = Object.values(expenseMap).reduce((a, b) => a + b, 0) || 1;
 
-  // 上位3件のみ表示してスマホで見やすく
-  const topIn = Object.entries(incomeMap).sort(([,a], [,b]) => b - a).slice(0, 3);
-  const topOut = Object.entries(expenseMap).sort(([,a], [,b]) => b - a).slice(0, 5);
+  // 全項目を表示（金額降順）
+  const allIncome = Object.entries(incomeMap).sort(([,a], [,b]) => b - a);
+  const allExpense = Object.entries(expenseMap).sort(([,a], [,b]) => b - a);
 
   return (
     <div className="card">
@@ -45,7 +45,7 @@ export default function MoneyFlow({ transactions }) {
             収入
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {topIn.map(([loc, amt]) => {
+            {allIncome.map(([loc, amt]) => {
               const percentage = ((amt / totalIn) * 100).toFixed(0);
               return (
                 <div key={loc} className="flow-bar" style={{ 
@@ -71,7 +71,7 @@ export default function MoneyFlow({ transactions }) {
                 </div>
               );
             })}
-            {topIn.length === 0 && (
+            {allIncome.length === 0 && (
               <div style={{
                 fontSize:'13px', 
                 color:'var(--text-tertiary)',
@@ -98,7 +98,7 @@ export default function MoneyFlow({ transactions }) {
             支出
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {topOut.map(([loc, amt]) => {
+            {allExpense.map(([loc, amt]) => {
               const percentage = ((amt / totalOut) * 100).toFixed(0);
               return (
                 <div key={loc} className="flow-bar" style={{ 
@@ -124,7 +124,7 @@ export default function MoneyFlow({ transactions }) {
                 </div>
               );
             })}
-            {topOut.length === 0 && (
+            {allExpense.length === 0 && (
               <div style={{
                 fontSize:'13px', 
                 color:'var(--text-tertiary)',

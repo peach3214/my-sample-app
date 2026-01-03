@@ -1,11 +1,28 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, X, Tag } from 'lucide-react';
 
-export default function PeriodFilter({ transactions, onFilteredTransactions }) {
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+export default function PeriodFilter({ transactions, onFilteredTransactions, showSearchText = true }) {
+  const [selectedYear, setSelectedYear] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
-  const [searchText, setSearchText] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState('');
+
+  // 利用可能な年月と場所を抽出
+  const { availableYears, availableMonths, availableLocations } = useMemo(() => {
+    const years = new Set();
+    const months = new Set();
+    const locations = new Set();
+    transactions.forEach(t => {
+      years.add(t.date.slice(0, 4));
+      months.add(t.date.slice(5, 7));
+      locations.add(t.location);
+    });
+    return {
+      availableYears: Array.from(years).sort((a, b) => b.localeCompare(a)),
+      availableMonths: Array.from(months).sort(),
+      availableLocations: Array.from(locations).sort()
+    };
+  }, [transactions]);
 
   // 利用可能なタグを抽出
   const availableTags = useMemo(() => {
@@ -26,12 +43,12 @@ export default function PeriodFilter({ transactions, onFilteredTransactions }) {
   useEffect(() => {
     let filtered = [...transactions];
 
-    // 期間フィルター
-    if (startDate) {
-      filtered = filtered.filter(t => t.date >= startDate);
+    // 年月フィルター
+    if (selectedYear) {
+      filtered = filtered.filter(t => t.date.startsWith(selectedYear));
     }
-    if (endDate) {
-      filtered = filtered.filter(t => t.date <= endDate);
+    if (selectedMonth) {
+      filtered = filtered.filter(t => t.date.slice(5, 7) === selectedMonth);
     }
 
     // タグフィルター
@@ -44,17 +61,13 @@ export default function PeriodFilter({ transactions, onFilteredTransactions }) {
       });
     }
 
-    // テキスト検索（場所・内容）
-    if (searchText) {
-      const searchLower = searchText.toLowerCase();
-      filtered = filtered.filter(t => 
-        t.location.toLowerCase().includes(searchLower) ||
-        (t.content && t.content.toLowerCase().includes(searchLower))
-      );
+    // 場所フィルター
+    if (selectedLocation) {
+      filtered = filtered.filter(t => t.location === selectedLocation);
     }
 
     onFilteredTransactions(filtered);
-  }, [startDate, endDate, selectedTags, searchText, transactions, onFilteredTransactions]);
+  }, [selectedYear, selectedMonth, selectedTags, selectedLocation, transactions, onFilteredTransactions]);
 
   const handleToggleTag = (tag) => {
     if (selectedTags.some(t => t.id === tag.id)) {
@@ -65,52 +78,38 @@ export default function PeriodFilter({ transactions, onFilteredTransactions }) {
   };
 
   const handleClearFilters = () => {
-    setStartDate('');
-    setEndDate('');
+    setSelectedYear('');
+    setSelectedMonth('');
     setSelectedTags([]);
-    setSearchText('');
+    setSelectedLocation('');
   };
 
-  const isFiltered = startDate || endDate || selectedTags.length > 0 || searchText;
+  const isFiltered = selectedYear || selectedMonth || selectedTags.length > 0 || selectedLocation;
 
   // クイック期間設定
   const setQuickPeriod = (period) => {
     const today = new Date();
-    const end = today.toISOString().split('T')[0];
-    let start = '';
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
 
     switch (period) {
-      case 'week':
-        const weekAgo = new Date(today);
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        start = weekAgo.toISOString().split('T')[0];
+      case 'thisMonth':
+        setSelectedYear(String(year));
+        setSelectedMonth(month);
         break;
-      case 'month':
-        const monthAgo = new Date(today);
-        monthAgo.setMonth(monthAgo.getMonth() - 1);
-        start = monthAgo.toISOString().split('T')[0];
+      case 'lastMonth':
+        const lastMonth = new Date(today);
+        lastMonth.setMonth(lastMonth.getMonth() - 1);
+        setSelectedYear(String(lastMonth.getFullYear()));
+        setSelectedMonth(String(lastMonth.getMonth() + 1).padStart(2, '0'));
         break;
-      case '3months':
-        const threeMonthsAgo = new Date(today);
-        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-        start = threeMonthsAgo.toISOString().split('T')[0];
-        break;
-      case '6months':
-        const sixMonthsAgo = new Date(today);
-        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-        start = sixMonthsAgo.toISOString().split('T')[0];
-        break;
-      case 'year':
-        const yearAgo = new Date(today);
-        yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-        start = yearAgo.toISOString().split('T')[0];
+      case 'thisYear':
+        setSelectedYear(String(year));
+        setSelectedMonth('');
         break;
       default:
         break;
     }
-
-    setStartDate(start);
-    setEndDate(end);
   };
 
   return (
@@ -121,191 +120,55 @@ export default function PeriodFilter({ transactions, onFilteredTransactions }) {
       border: '1px solid var(--divider)',
       marginBottom: '16px'
     }}>
-      {/* 検索テキスト */}
+      {/* クイック選択 */}
       <div style={{ marginBottom: '16px' }}>
-        <label style={{
-          fontSize: '13px',
-          fontWeight: '600',
-          color: 'var(--text-secondary)',
-          marginBottom: '8px',
-          display: 'block',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px'
-        }}>
-          検索
-        </label>
-        <input
-          type="text"
-          className="input-field"
-          placeholder="場所や内容で検索..."
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          style={{ marginBottom: 0 }}
-        />
-      </div>
-
-      {/* クイック期間選択 */}
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{
-          fontSize: '13px',
-          fontWeight: '600',
-          color: 'var(--text-secondary)',
-          marginBottom: '8px',
-          display: 'block',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px'
-        }}>
+        <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
           クイック選択
         </label>
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(3, 1fr)', 
-          gap: '8px' 
-        }}>
-          <button
-            type="button"
-            onClick={() => setQuickPeriod('week')}
-            style={{
-              padding: '10px',
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--divider)',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              color: 'var(--text-main)'
-            }}
-          >
-            1週間
-          </button>
-          <button
-            type="button"
-            onClick={() => setQuickPeriod('month')}
-            style={{
-              padding: '10px',
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--divider)',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              color: 'var(--text-main)'
-            }}
-          >
-            1ヶ月
-          </button>
-          <button
-            type="button"
-            onClick={() => setQuickPeriod('3months')}
-            style={{
-              padding: '10px',
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--divider)',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              color: 'var(--text-main)'
-            }}
-          >
-            3ヶ月
-          </button>
-          <button
-            type="button"
-            onClick={() => setQuickPeriod('6months')}
-            style={{
-              padding: '10px',
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--divider)',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              color: 'var(--text-main)'
-            }}
-          >
-            6ヶ月
-          </button>
-          <button
-            type="button"
-            onClick={() => setQuickPeriod('year')}
-            style={{
-              padding: '10px',
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--divider)',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              color: 'var(--text-main)'
-            }}
-          >
-            1年
-          </button>
-          <button
-            type="button"
-            onClick={handleClearFilters}
-            style={{
-              padding: '10px',
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--divider)',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              color: 'var(--text-secondary)'
-            }}
-          >
-            すべて
-          </button>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+          <button type="button" onClick={() => setQuickPeriod('thisMonth')} style={{ padding: '10px', background: 'var(--bg-elevated)', border: '1px solid var(--divider)', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: 'var(--text-main)' }}>今月</button>
+          <button type="button" onClick={() => setQuickPeriod('lastMonth')} style={{ padding: '10px', background: 'var(--bg-elevated)', border: '1px solid var(--divider)', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: 'var(--text-main)' }}>先月</button>
+          <button type="button" onClick={() => setQuickPeriod('thisYear')} style={{ padding: '10px', background: 'var(--bg-elevated)', border: '1px solid var(--divider)', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: 'var(--text-main)' }}>今年</button>
         </div>
       </div>
 
-      {/* カスタム期間 */}
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{
-          fontSize: '13px',
-          fontWeight: '600',
-          color: 'var(--text-secondary)',
-          marginBottom: '8px',
-          display: 'block',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px'
-        }}>
-          <Calendar size={14} style={{ display: 'inline', marginRight: '4px' }} />
-          期間指定
-        </label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '8px', alignItems: 'center' }}>
-          <input
-            type="date"
-            className="input-field"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            style={{ fontSize: '14px' }}
-          />
-          <span style={{ color: 'var(--text-secondary)' }}>〜</span>
-          <input
-            type="date"
-            className="input-field"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            style={{ fontSize: '14px' }}
-          />
+      {/* 年月選択 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+        <div>
+          <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>年</label>
+          <select className="input-field" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} style={{ marginBottom: 0 }}>
+            <option value="">全年</option>
+            {availableYears.map(year => (
+              <option key={year} value={year}>{year}年</option>
+            ))}
+          </select>
         </div>
+        <div>
+          <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>月</label>
+          <select className="input-field" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} style={{ marginBottom: 0 }}>
+            <option value="">全月</option>
+            {availableMonths.map(month => (
+              <option key={month} value={month}>{month}月</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* 場所選択 */}
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>場所</label>
+        <select className="input-field" value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)} style={{ marginBottom: 0 }}>
+          <option value="">全場所</option>
+          {availableLocations.map(loc => (
+            <option key={loc} value={loc}>{loc}</option>
+          ))}
+        </select>
       </div>
 
       {/* タグフィルター */}
       {availableTags.length > 0 && (
         <div style={{ marginBottom: isFiltered ? '16px' : '0' }}>
-          <label style={{
-            fontSize: '13px',
-            fontWeight: '600',
-            color: 'var(--text-secondary)',
-            marginBottom: '8px',
-            display: 'block',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px'
-          }}>
+          <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
             <Tag size={14} style={{ display: 'inline', marginRight: '4px' }} />
             タグフィルター
           </label>
@@ -351,13 +214,17 @@ export default function PeriodFilter({ transactions, onFilteredTransactions }) {
             background: 'transparent',
             border: '1px solid var(--divider)',
             borderRadius: '10px',
-            color: 'var(--text-secondary)',
             fontSize: '14px',
             fontWeight: '600',
             cursor: 'pointer',
-            transition: 'all 0.2s ease'
+            color: 'var(--text-secondary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px'
           }}
         >
+          <X size={16} />
           フィルターをクリア
         </button>
       )}

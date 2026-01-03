@@ -9,12 +9,9 @@ import EditTransactionModal from './components/EditTransactionModal';
 import ExpenseBreakdown from './components/ExpenseBreakdown';
 import NotificationSettings from './components/NotificationSettings';
 import TagMaster from './components/TagMaster';
-import TagSummary from './components/TagSummary';
 import BudgetTracker from './components/BudgetTracker';
 import PeriodFilter from './components/PeriodFilter';
 import TemplateManager from './components/TemplateManager';
-import BankAccountManager from './components/BankAccountManager';
-import StockHoldingManager from './components/StockHoldingManager';
 import UnifiedAssetSnapshot from './components/UnifiedAssetSnapshot';
 import AssetChart from './components/AssetChart';
 import { useNotifications } from './hooks/useNotifications';
@@ -23,13 +20,12 @@ import { Home, PlusCircle, BarChart2, List, ChevronLeft, ChevronRight, Bookmark,
 function App() {
   const [transactions, setTransactions] = useState([]);
   const [currentDate, setCurrentDate] = useState(new Date()); // 表示中の月
-  const [activeTab, setActiveTab] = useState('home'); // 現在のタブ (home, input, analysis, history, assets, settings)
+  const [activeTab, setActiveTab] = useState('home'); // 現在のタブ
   const [editingTransaction, setEditingTransaction] = useState(null); // 編集中の取引
   const [showNotificationSettings, setShowNotificationSettings] = useState(false); // 通知設定モーダル
   const [showTagMaster, setShowTagMaster] = useState(false); // タグマスタモーダル
   const [showTemplateManager, setShowTemplateManager] = useState(false); // テンプレート管理モーダル
   const [filteredHistoryTransactions, setFilteredHistoryTransactions] = useState([]); // フィルター済み履歴
-  const [filteredAnalysisTransactions, setFilteredAnalysisTransactions] = useState([]); // フィルター済み分析データ
   const [historyPage, setHistoryPage] = useState(1); // 履歴ページ番号
   
   // 通知機能を初期化
@@ -49,37 +45,24 @@ function App() {
   useEffect(() => {
     fetchData();
 
-    // Supabaseのリアルタイム購読を設定
+    // Supabaseのリアルタイム購読
     const channel = supabase
       .channel('transactions_changes')
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'transactions'
-        },
+        { event: 'INSERT', schema: 'public', table: 'transactions' },
         (payload) => {
-          console.log('新しい取引が追加されました:', payload);
-          
-          // payload.newが正しいフォーマットか確認
           if (payload.new && payload.new.id) {
-            // 通知設定を確認
             const settings = JSON.parse(localStorage.getItem('notificationSettings') || '{"transactionAdded": true}');
-            
-            // 通知を表示
             if (settings.transactionAdded && Notification.permission === 'granted') {
               notifyTransactionAdded(payload.new);
             }
           }
-          
-          // データを再取得
           fetchData();
         }
       )
       .subscribe();
 
-    // クリーンアップ
     return () => {
       supabase.removeChannel(channel);
     };
@@ -92,21 +75,57 @@ function App() {
     setCurrentDate(newDate);
   };
 
-  // 表示用に「YYYY-MM」形式の文字列を作る
-  const currentMonthStr = currentDate.toISOString().slice(0, 7); // 例: "2026-01"
+  const currentMonthStr = currentDate.toISOString().slice(0, 7);
 
-  // 現在選択されている月のデータだけでフィルタリング
+  // --- MEMOS (Moved to Top Level) ---
+
+  // 1. 現在選択されている月のデータ
   const monthlyTransactions = useMemo(() => {
     return transactions.filter(t => t.date.startsWith(currentMonthStr));
   }, [transactions, currentMonthStr]);
 
-  // 初期表示用（直近50件のみ、パフォーマンス最適化）
-  const recentTransactions = useMemo(() => {
-    const sorted = [...transactions].sort((a, b) => 
-      new Date(b.date) - new Date(a.date)
-    );
-    return sorted.slice(0, 50);
+  // 2. 履歴タブ用: 年月でのグループ化
+  const groupedByYearMonth = useMemo(() => {
+    const groups = {};
+    transactions.forEach(t => {
+      const yearMonth = t.date.slice(0, 7); // YYYY-MM
+      if (!groups[yearMonth]) {
+        groups[yearMonth] = [];
+      }
+      groups[yearMonth].push(t);
+    });
+    return Object.keys(groups)
+      .sort((a, b) => b.localeCompare(a))
+      .map(ym => ({ yearMonth: ym, transactions: groups[ym] }));
   }, [transactions]);
+
+  // 3. 履歴タブ用: フィルター適用後のグループ化
+  const filteredGroups = useMemo(() => {
+    if (filteredHistoryTransactions.length === 0) {
+      // フィルターなし: 最新20件を使用
+      const recent = transactions.slice(0, 20);
+      const groups = {};
+      recent.forEach(t => {
+        const ym = t.date.slice(0, 7);
+        if (!groups[ym]) groups[ym] = [];
+        groups[ym].push(t);
+      });
+      return Object.keys(groups)
+        .sort((a, b) => b.localeCompare(a))
+        .map(ym => ({ yearMonth: ym, transactions: groups[ym] }));
+    } else {
+      // フィルター適用: 該当データをグループ化
+      const groups = {};
+      filteredHistoryTransactions.forEach(t => {
+        const ym = t.date.slice(0, 7);
+        if (!groups[ym]) groups[ym] = [];
+        groups[ym].push(t);
+      });
+      return Object.keys(groups)
+        .sort((a, b) => b.localeCompare(a))
+        .map(ym => ({ yearMonth: ym, transactions: groups[ym] }));
+    }
+  }, [transactions, filteredHistoryTransactions]);
 
   // 今月の収支合計
   const totalIncome = monthlyTransactions.filter(t => t.type === 'income').reduce((acc, cur) => acc + cur.amount, 0);
@@ -118,7 +137,6 @@ function App() {
       case 'home':
         return (
           <>
-            {/* 今月のサマリーカード - 改善版 */}
             <div className="card summary-card" style={{ margin: '0 16px 16px' }}>
               <div className="balance-label">今月の残高</div>
               <div className="balance-amount">
@@ -139,14 +157,8 @@ function App() {
                 </div>
               </div>
             </div>
-            
-            {/* 予算トラッカー */}
             <BudgetTracker transactions={monthlyTransactions} currentDate={currentDate} />
-            
-            {/* カレンダービュー */}
             <CalendarView transactions={monthlyTransactions} currentDate={currentDate} />
-            
-            {/* まる見えフロー */}
             <MoneyFlow transactions={monthlyTransactions} />
           </>
         );
@@ -154,163 +166,143 @@ function App() {
       case 'input':
         return (
           <TransactionForm 
-            onAdded={() => {
-              fetchData(); // データのみ再取得、タブは切り替えない
-            }} 
+            onAdded={() => fetchData()} 
             existingTransactions={transactions} 
           />
         );
 
       case 'analysis':
-        // フィルター済みデータまたは全データ
-        const analysisData = filteredAnalysisTransactions.length > 0 || (activeTab === 'analysis' && filteredAnalysisTransactions !== transactions)
-          ? filteredAnalysisTransactions 
-          : transactions;
-
         return (
           <>
-            {/* 期間・タグフィルター */}
-            <PeriodFilter
-              transactions={transactions}
-              onFilteredTransactions={setFilteredAnalysisTransactions}
-            />
-
-            <Dashboard transactions={analysisData} />
-            <TagSummary transactions={analysisData} />
-            <ExpenseBreakdown transactions={analysisData} />
+            <Dashboard transactions={transactions} />
+            <ExpenseBreakdown transactions={transactions} />
           </>
         );
 
       case 'history':
-        // 初期表示: フィルター適用後のみ表示
-        const displayHistory = filteredHistoryTransactions;
-        
-        // ページネーション
-        const itemsPerPage = 30;
-        const totalPages = Math.ceil(displayHistory.length / itemsPerPage);
+        // ページネーション計算 (HookではないのでここでOK)
+        const itemsPerPage = 3; 
+        const totalPages = Math.ceil(filteredGroups.length / itemsPerPage);
         const startIndex = (historyPage - 1) * itemsPerPage;
         const endIndex = startIndex + itemsPerPage;
-        const paginatedHistory = displayHistory.slice(startIndex, endIndex);
+        const paginatedGroups = filteredGroups.slice(startIndex, endIndex);
 
         return (
           <>
             <div className="card">
               <div className="card-title"><List size={20} /> 取引履歴</div>
               
-              {/* 期間・タグフィルター */}
               <PeriodFilter 
                 transactions={transactions}
                 onFilteredTransactions={(filtered) => {
                   setFilteredHistoryTransactions(filtered);
                   setHistoryPage(1);
                 }}
+                showSearchText={false}
               />
 
-              {displayHistory.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-state-icon">🔍</div>
-                  <div className="empty-state-text">期間を指定して検索してください</div>
-                </div>
-              ) : (
-                <>
-                  {/* ページネーション */}
-                  {displayHistory.length > itemsPerPage && (
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '12px',
-                      background: 'var(--bg-color)',
+              {filteredGroups.length > itemsPerPage && (
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '12px',
+                  background: 'var(--bg-color)',
+                  borderRadius: '8px',
+                  marginBottom: '16px'
+                }}>
+                  <button
+                    onClick={() => setHistoryPage(Math.max(1, historyPage - 1))}
+                    disabled={historyPage === 1}
+                    style={{
+                      padding: '8px 16px',
+                      background: historyPage === 1 ? 'var(--bg-elevated)' : 'var(--primary)',
+                      color: historyPage === 1 ? 'var(--text-tertiary)' : 'white',
+                      border: 'none',
                       borderRadius: '8px',
-                      marginTop: '16px',
-                      marginBottom: '16px'
-                    }}>
-                      <button
-                        onClick={() => setHistoryPage(Math.max(1, historyPage - 1))}
-                        disabled={historyPage === 1}
-                        style={{
-                          padding: '8px 16px',
-                          background: historyPage === 1 ? 'var(--bg-elevated)' : 'var(--primary)',
-                          color: historyPage === 1 ? 'var(--text-tertiary)' : 'white',
-                          border: 'none',
-                          borderRadius: '8px',
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          cursor: historyPage === 1 ? 'not-allowed' : 'pointer'
-                        }}
-                      >
-                        ◀ 前へ
-                      </button>
-                      <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)' }}>
-                        {historyPage} / {totalPages} ({displayHistory.length}件)
-                      </span>
-                      <button
-                        onClick={() => setHistoryPage(Math.min(totalPages, historyPage + 1))}
-                        disabled={historyPage === totalPages}
-                        style={{
-                          padding: '8px 16px',
-                          background: historyPage === totalPages ? 'var(--bg-elevated)' : 'var(--primary)',
-                          color: historyPage === totalPages ? 'var(--text-tertiary)' : 'white',
-                          border: 'none',
-                          borderRadius: '8px',
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          cursor: historyPage === totalPages ? 'not-allowed' : 'pointer'
-                        }}
-                      >
-                        次へ ▶
-                      </button>
-                    </div>
-                  )}
-                  
-                  <div>
-                    {paginatedHistory.map(t => (
-                  <div 
-                    key={t.id} 
-                    className="history-item"
-                    onClick={() => setEditingTransaction(t)}
-                    style={{ cursor: 'pointer' }}
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: historyPage === 1 ? 'not-allowed' : 'pointer'
+                    }}
                   >
-                    <div style={{ flex: 1 }}>
-                      <div className="history-loc">{t.location}</div>
-                      <div className="history-meta">{t.date} · {t.content}</div>
-                      {/* タグ表示 */}
-                      {t.tags && t.tags.length > 0 && (
-                        <div style={{ 
-                          display: 'flex', 
-                          flexWrap: 'wrap', 
-                          gap: '4px', 
-                          marginTop: '6px' 
-                        }}>
-                          {t.tags.map(tag => (
-                            <span
-                              key={tag.id}
-                              style={{
-                                padding: '2px 8px',
-                                borderRadius: '10px',
-                                background: tag.color,
-                                color: 'white',
-                                fontSize: '11px',
-                                fontWeight: '600'
-                              }}
-                            >
-                              {tag.name}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className={t.type === 'income' ? 'amount-plus' : 'amount-minus'}>
-                      {t.type === 'income' ? '+' : '-'} ¥{t.amount.toLocaleString()}
-                    </div>
+                    ◀ 前へ
+                  </button>
+                  <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)' }}>
+                    {historyPage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setHistoryPage(Math.min(totalPages, historyPage + 1))}
+                    disabled={historyPage === totalPages}
+                    style={{
+                      padding: '8px 16px',
+                      background: historyPage === totalPages ? 'var(--bg-elevated)' : 'var(--primary)',
+                      color: historyPage === totalPages ? 'var(--text-tertiary)' : 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: historyPage === totalPages ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    次へ ▶
+                  </button>
+                </div>
+              )}
+              
+              {paginatedGroups.map(group => (
+                <div key={group.yearMonth} style={{ marginBottom: '20px' }}>
+                  <div style={{ 
+                    fontSize: '16px', 
+                    fontWeight: '700', 
+                    color: 'var(--text-main)', 
+                    marginBottom: '12px',
+                    padding: '8px 12px',
+                    background: 'var(--bg-color)',
+                    borderRadius: '8px'
+                  }}>
+                    {group.yearMonth.slice(0, 4)}年{group.yearMonth.slice(5, 7)}月
                   </div>
+                  <div>
+                    {group.transactions.map(t => (
+                      <div 
+                        key={t.id} 
+                        className="history-item"
+                        onClick={() => setEditingTransaction(t)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div className="history-loc">{t.location}</div>
+                          <div className="history-meta">{t.date} · {t.content}</div>
+                          {t.tags && t.tags.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                              {t.tags.map(tag => (
+                                <span
+                                  key={tag.id}
+                                  style={{
+                                    padding: '2px 8px',
+                                    borderRadius: '10px',
+                                    background: tag.color,
+                                    color: 'white',
+                                    fontSize: '11px',
+                                    fontWeight: '600'
+                                  }}
+                                >
+                                  {tag.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className={t.type === 'income' ? 'amount-plus' : 'amount-minus'}>
+                          {t.type === 'income' ? '+' : '-'} ¥{t.amount.toLocaleString()}
+                        </div>
+                      </div>
                     ))}
                   </div>
-                </>
-              )}
+                </div>
+              ))}
             </div>
             
-            {/* 編集モーダル */}
             {editingTransaction && (
               <EditTransactionModal
                 transaction={editingTransaction}
@@ -340,7 +332,6 @@ function App() {
               設定
             </div>
             
-            {/* テンプレート管理ボタン */}
             <button
               onClick={() => setShowTemplateManager(true)}
               style={{
@@ -373,7 +364,6 @@ function App() {
               <span style={{ fontSize: '24px', color: 'var(--text-tertiary)' }}>›</span>
             </button>
 
-            {/* タグ管理ボタン */}
             <button
               onClick={() => setShowTagMaster(true)}
               style={{
@@ -406,7 +396,6 @@ function App() {
               <span style={{ fontSize: '24px', color: 'var(--text-tertiary)' }}>›</span>
             </button>
 
-            {/* 通知設定ボタン */}
             <button
               onClick={() => setShowNotificationSettings(true)}
               style={{
@@ -447,7 +436,6 @@ function App() {
 
   return (
     <div className="container">
-      {/* ヘッダー（月選択） - ホームでのみ表示 */}
       {activeTab === 'home' && (
         <div className="month-selector">
           <button className="month-btn" onClick={() => changeMonth(-1)}><ChevronLeft size={20}/></button>
@@ -458,12 +446,10 @@ function App() {
         </div>
       )}
 
-      {/* メインコンテンツ表示エリア */}
       <div className="content-area">
         {renderContent()}
       </div>
 
-      {/* ボトムナビゲーション */}
       <nav className="bottom-nav">
         <button 
           className={`nav-item ${activeTab === 'home' ? 'active' : ''}`} 
@@ -514,17 +500,14 @@ function App() {
         </button>
       </nav>
 
-      {/* 通知設定モーダル */}
       {showNotificationSettings && (
         <NotificationSettings onClose={() => setShowNotificationSettings(false)} />
       )}
 
-      {/* タグマスタモーダル */}
       {showTagMaster && (
         <TagMaster onClose={() => setShowTagMaster(false)} />
       )}
 
-      {/* テンプレート管理モーダル */}
       {showTemplateManager && (
         <TemplateManager onClose={() => setShowTemplateManager(false)} />
       )}
