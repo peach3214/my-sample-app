@@ -40,12 +40,19 @@ export default function TransactionForm({ onAdded, existingTransactions }) {
 
   // テンプレートを適用
   const handleApplyTemplate = (template) => {
+    // テンプレートのタグIDから実際のタグオブジェクトを取得
+    const savedTags = JSON.parse(localStorage.getItem('tagMaster') || '[]');
+    const templateTags = (template.tagIds || []).map(tagId => 
+      savedTags.find(t => t.id === tagId)
+    ).filter(Boolean);
+
     setFormData({
       ...formData,
       type: template.type,
       location: template.location,
       content: template.content || '',
-      amount: template.amount || ''
+      amount: template.amount || '',
+      tags: templateTags
     });
     setShowTemplates(false);
   };

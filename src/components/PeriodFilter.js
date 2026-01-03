@@ -5,6 +5,7 @@ export default function PeriodFilter({ transactions, onFilteredTransactions }) {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
+  const [searchText, setSearchText] = useState('');
 
   // 利用可能なタグを抽出
   const availableTags = useMemo(() => {
@@ -43,8 +44,17 @@ export default function PeriodFilter({ transactions, onFilteredTransactions }) {
       });
     }
 
+    // テキスト検索（場所・内容）
+    if (searchText) {
+      const searchLower = searchText.toLowerCase();
+      filtered = filtered.filter(t => 
+        t.location.toLowerCase().includes(searchLower) ||
+        (t.content && t.content.toLowerCase().includes(searchLower))
+      );
+    }
+
     onFilteredTransactions(filtered);
-  }, [startDate, endDate, selectedTags, transactions, onFilteredTransactions]);
+  }, [startDate, endDate, selectedTags, searchText, transactions, onFilteredTransactions]);
 
   const handleToggleTag = (tag) => {
     if (selectedTags.some(t => t.id === tag.id)) {
@@ -58,9 +68,10 @@ export default function PeriodFilter({ transactions, onFilteredTransactions }) {
     setStartDate('');
     setEndDate('');
     setSelectedTags([]);
+    setSearchText('');
   };
 
-  const isFiltered = startDate || endDate || selectedTags.length > 0;
+  const isFiltered = startDate || endDate || selectedTags.length > 0 || searchText;
 
   // クイック期間設定
   const setQuickPeriod = (period) => {
@@ -110,6 +121,29 @@ export default function PeriodFilter({ transactions, onFilteredTransactions }) {
       border: '1px solid var(--divider)',
       marginBottom: '16px'
     }}>
+      {/* 検索テキスト */}
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{
+          fontSize: '13px',
+          fontWeight: '600',
+          color: 'var(--text-secondary)',
+          marginBottom: '8px',
+          display: 'block',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px'
+        }}>
+          検索
+        </label>
+        <input
+          type="text"
+          className="input-field"
+          placeholder="場所や内容で検索..."
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          style={{ marginBottom: 0 }}
+        />
+      </div>
+
       {/* クイック期間選択 */}
       <div style={{ marginBottom: '16px' }}>
         <label style={{

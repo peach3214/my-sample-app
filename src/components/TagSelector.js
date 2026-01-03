@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Tag, X } from 'lucide-react';
+import { Tag, X, Plus } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 export default function TagSelector({ selectedTags = [], onChange, maxTags = 5 }) {
@@ -23,120 +23,103 @@ export default function TagSelector({ selectedTags = [], onChange, maxTags = 5 }
     }
   };
 
+  // タグの追加・削除を切り替えるメインの関数
   const handleToggleTag = (tag) => {
+    // onChange が関数でない場合は処理を中断（エラー防止）
+    if (typeof onChange !== 'function') {
+      console.error('TagSelector: onChange prop is not a function', onChange);
+      return;
+    }
+
     const isSelected = selectedTags.some(t => t.id === tag.id);
     
     if (isSelected) {
-      // 選択解除
+      // すでに選択されている場合は削除
       onChange(selectedTags.filter(t => t.id !== tag.id));
     } else {
-      // 選択追加（最大数チェック）
+      // 選択されていない場合は追加（最大数チェック）
       if (selectedTags.length < maxTags) {
         onChange([...selectedTags, tag]);
+      } else {
+        alert(`タグは最大${maxTags}個までです`);
       }
     }
   };
 
-  const handleRemoveTag = (tagId) => {
-    onChange(selectedTags.filter(t => t.id !== tagId));
+  // 選択済みタグの「X」ボタン用
+  const handleRemoveTag = (e, tagId) => {
+    e.stopPropagation(); // 親のクリックイベント（ドロップダウン開閉など）を阻止
+    if (typeof onChange === 'function') {
+      onChange(selectedTags.filter(t => t.id !== tagId));
+    }
   };
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', marginBottom: '16px' }}>
       <label style={{
         fontSize: '13px',
         fontWeight: '600',
         color: 'var(--text-secondary)',
         marginBottom: '8px',
-        display: 'block',
-        textTransform: 'uppercase',
-        letterSpacing: '0.5px'
+        display: 'block'
       }}>
         タグ（最大{maxTags}個）
       </label>
 
-      {/* 選択済みタグ */}
-      {selectedTags.length > 0 && (
-        <div style={{
+      <div 
+        onClick={() => setShowDropdown(!showDropdown)}
+        style={{
+          minHeight: '44px',
+          padding: '6px 12px',
+          background: 'var(--bg-color)',
+          border: '1px solid var(--divider)',
+          borderRadius: '12px',
           display: 'flex',
           flexWrap: 'wrap',
-          gap: '8px',
-          marginBottom: '8px'
-        }}>
-          {selectedTags.map(tag => (
-            <div
-              key={tag.id}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 10px',
-                borderRadius: '20px',
-                background: tag.color,
-                color: 'white',
-                fontSize: '13px',
-                fontWeight: '600'
-              }}
-            >
-              <span>{tag.name}</span>
-              <button
-                type="button"
-                onClick={() => handleRemoveTag(tag.id)}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.3)',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '18px',
-                  height: '18px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  padding: 0,
-                  color: 'white'
-                }}
-              >
-                <X size={12} />
-              </button>
-            </div>
-          ))}
+          gap: '6px',
+          alignItems: 'center',
+          cursor: 'pointer'
+        }}
+      >
+        {selectedTags.length === 0 && (
+          <span style={{ color: 'var(--text-tertiary)', fontSize: '14px' }}>タグを選択...</span>
+        )}
+        
+        {selectedTags.map(tag => (
+          <span
+            key={tag.id}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '4px 10px',
+              borderRadius: '16px',
+              background: tag.color || 'var(--primary)',
+              color: 'white',
+              fontSize: '12px',
+              fontWeight: '600'
+            }}
+          >
+            {tag.name}
+            <X 
+              size={14} 
+              onClick={(e) => handleRemoveTag(e, tag.id)} 
+              style={{ cursor: 'pointer' }}
+            />
+          </span>
+        ))}
+        
+        <div style={{ marginLeft: 'auto', color: 'var(--text-tertiary)' }}>
+          <Plus size={18} />
         </div>
-      )}
+      </div>
 
-      {/* タグ追加ボタン */}
-      {selectedTags.length < maxTags && (
-        <button
-          type="button"
-          onClick={() => setShowDropdown(!showDropdown)}
-          className="input-field"
-          style={{
-            width: '100%',
-            textAlign: 'left',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-            color: 'var(--text-secondary)'
-          }}
-        >
-          <Tag size={16} />
-          タグを追加...
-        </button>
-      )}
-
-      {/* ドロップダウン */}
+      {/* ドロップダウンリスト */}
       {showDropdown && (
         <>
-          <div
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 999
-            }}
-            onClick={() => setShowDropdown(false)}
+          <div 
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }} 
+            onClick={() => setShowDropdown(false)} 
           />
           <div style={{
             position: 'absolute',
@@ -145,38 +128,30 @@ export default function TagSelector({ selectedTags = [], onChange, maxTags = 5 }
             right: 0,
             marginTop: '4px',
             background: 'var(--bg-elevated)',
+            border: '1px solid var(--divider)',
             borderRadius: '12px',
-            boxShadow: 'var(--shadow-strong)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+            zIndex: 999,
             maxHeight: '200px',
-            overflowY: 'auto',
-            zIndex: 1000,
-            border: '1px solid var(--divider)'
+            overflowY: 'auto'
           }}>
             {availableTags.length === 0 ? (
-              <div style={{
-                padding: '20px',
-                textAlign: 'center',
-                color: 'var(--text-secondary)',
-                fontSize: '13px'
-              }}>
-                タグがありません
+              <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '14px' }}>
+                タグがありません。設定から作成してください。
               </div>
             ) : (
-              availableTags
-                .filter(tag => !selectedTags.some(t => t.id === tag.id))
-                .map(tag => (
+              availableTags.map(tag => {
+                const isSelected = selectedTags.some(t => t.id === tag.id);
+                return (
                   <button
                     key={tag.id}
                     type="button"
-                    onClick={() => {
-                      handleToggleTag(tag);
-                      setShowDropdown(false);
-                    }}
+                    onClick={() => handleToggleTag(tag)}
                     style={{
                       width: '100%',
                       padding: '12px 16px',
                       border: 'none',
-                      background: 'transparent',
+                      background: isSelected ? 'var(--bg-color)' : 'transparent',
                       textAlign: 'left',
                       display: 'flex',
                       alignItems: 'center',
@@ -185,21 +160,29 @@ export default function TagSelector({ selectedTags = [], onChange, maxTags = 5 }
                       borderBottom: '1px solid var(--divider)',
                       transition: 'background 0.2s ease'
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-color)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                   >
                     <div style={{
                       width: '20px',
                       height: '20px',
                       borderRadius: '4px',
                       background: tag.color,
-                      flexShrink: 0
-                    }} />
-                    <span style={{ fontSize: '14px', fontWeight: '600' }}>
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      {isSelected && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'white' }} />}
+                    </div>
+                    <span style={{ 
+                      fontSize: '14px', 
+                      fontWeight: isSelected ? '700' : '600',
+                      color: isSelected ? 'var(--primary)' : 'var(--text-main)'
+                    }}>
                       {tag.name}
                     </span>
                   </button>
-                ))
+                );
+              })
             )}
           </div>
         </>

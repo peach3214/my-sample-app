@@ -148,10 +148,10 @@ export default function Dashboard({ transactions }) {
                   padding: '14px 8px', 
                   textAlign: 'right',
                   fontWeight: '800',
-                  fontSize: '15px',
+                  fontSize: '13px',
                   color: d.balance >= 0 ? 'var(--income)' : 'var(--expense)'
                 }}>
-                  {d.balance >= 0 ? '' : '-'}¥{Math.abs(d.balance).toLocaleString()}
+                  ¥{Math.abs(d.balance).toLocaleString()}
                 </td>
               </tr>
             ))}
@@ -317,7 +317,7 @@ export default function Dashboard({ transactions }) {
               color: grandTotal.balance >= 0 ? 'var(--income)' : 'var(--expense)',
               letterSpacing: '-0.5px'
             }}>
-              {grandTotal.balance >= 0 ? '' : '-'}¥{Math.abs(grandTotal.balance).toLocaleString()}
+              ¥{Math.abs(grandTotal.balance).toLocaleString()}
             </div>
           </div>
         </div>

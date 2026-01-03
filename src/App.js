@@ -15,9 +15,8 @@ import PeriodFilter from './components/PeriodFilter';
 import TemplateManager from './components/TemplateManager';
 import BankAccountManager from './components/BankAccountManager';
 import StockHoldingManager from './components/StockHoldingManager';
-import AssetSnapshotCreator from './components/AssetSnapshotCreator';
+import UnifiedAssetSnapshot from './components/UnifiedAssetSnapshot';
 import AssetChart from './components/AssetChart';
-import AutoSnapshotScheduler from './components/AutoSnapshotScheduler';
 import { useNotifications } from './hooks/useNotifications';
 import { Home, PlusCircle, BarChart2, List, ChevronLeft, ChevronRight, Bookmark, Tag, Settings, Wallet } from 'lucide-react';
 
@@ -183,10 +182,9 @@ function App() {
         );
 
       case 'history':
-        const displayHistory = filteredHistoryTransactions.length > 0 || activeTab === 'history'
-          ? filteredHistoryTransactions 
-          : recentTransactions; // 初期は直近50件
-
+        // 初期表示: フィルター適用後のみ表示
+        const displayHistory = filteredHistoryTransactions;
+        
         // ページネーション
         const itemsPerPage = 30;
         const totalPages = Math.ceil(displayHistory.length / itemsPerPage);
@@ -199,67 +197,74 @@ function App() {
             <div className="card">
               <div className="card-title"><List size={20} /> 取引履歴</div>
               
-              {/* 期間・タグフィルター（分析タブと同じ） */}
+              {/* 期間・タグフィルター */}
               <PeriodFilter 
                 transactions={transactions}
                 onFilteredTransactions={(filtered) => {
                   setFilteredHistoryTransactions(filtered);
-                  setHistoryPage(1); // フィルター変更時はページをリセット
+                  setHistoryPage(1);
                 }}
               />
 
-              {/* ページネーション */}
-              {displayHistory.length > itemsPerPage && (
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '12px',
-                  background: 'var(--bg-color)',
-                  borderRadius: '8px',
-                  marginTop: '16px',
-                  marginBottom: '16px'
-                }}>
-                  <button
-                    onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
-                    disabled={historyPage === 1}
-                    style={{
-                      padding: '8px 16px',
-                      background: historyPage === 1 ? 'var(--bg-elevated)' : 'var(--primary)',
-                      color: historyPage === 1 ? 'var(--text-tertiary)' : 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      cursor: historyPage === 1 ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    ◀ 前へ
-                  </button>
-                  <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)' }}>
-                    {historyPage} / {totalPages} ({displayHistory.length}件)
-                  </span>
-                  <button
-                    onClick={() => setHistoryPage(p => Math.min(totalPages, p + 1))}
-                    disabled={historyPage === totalPages}
-                    style={{
-                      padding: '8px 16px',
-                      background: historyPage === totalPages ? 'var(--bg-elevated)' : 'var(--primary)',
-                      color: historyPage === totalPages ? 'var(--text-tertiary)' : 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      cursor: historyPage === totalPages ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    次へ ▶
-                  </button>
+              {displayHistory.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon">🔍</div>
+                  <div className="empty-state-text">期間を指定して検索してください</div>
                 </div>
-              )}
-              
-              <div>
-                {paginatedHistory.map(t => (
+              ) : (
+                <>
+                  {/* ページネーション */}
+                  {displayHistory.length > itemsPerPage && (
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '12px',
+                      background: 'var(--bg-color)',
+                      borderRadius: '8px',
+                      marginTop: '16px',
+                      marginBottom: '16px'
+                    }}>
+                      <button
+                        onClick={() => setHistoryPage(Math.max(1, historyPage - 1))}
+                        disabled={historyPage === 1}
+                        style={{
+                          padding: '8px 16px',
+                          background: historyPage === 1 ? 'var(--bg-elevated)' : 'var(--primary)',
+                          color: historyPage === 1 ? 'var(--text-tertiary)' : 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: historyPage === 1 ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        ◀ 前へ
+                      </button>
+                      <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)' }}>
+                        {historyPage} / {totalPages} ({displayHistory.length}件)
+                      </span>
+                      <button
+                        onClick={() => setHistoryPage(Math.min(totalPages, historyPage + 1))}
+                        disabled={historyPage === totalPages}
+                        style={{
+                          padding: '8px 16px',
+                          background: historyPage === totalPages ? 'var(--bg-elevated)' : 'var(--primary)',
+                          color: historyPage === totalPages ? 'var(--text-tertiary)' : 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: historyPage === totalPages ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        次へ ▶
+                      </button>
+                    </div>
+                  )}
+                  
+                  <div>
+                    {paginatedHistory.map(t => (
                   <div 
                     key={t.id} 
                     className="history-item"
@@ -299,16 +304,10 @@ function App() {
                       {t.type === 'income' ? '+' : '-'} ¥{t.amount.toLocaleString()}
                     </div>
                   </div>
-                ))}
-                {paginatedHistory.length === 0 && (
-                  <div className="empty-state">
-                    <div className="empty-state-icon">📋</div>
-                    <div className="empty-state-text">
-                      {transactions.length === 0 ? 'まだ取引がありません' : '条件に一致する取引がありません'}
-                    </div>
+                    ))}
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
             
             {/* 編集モーダル */}
@@ -329,10 +328,7 @@ function App() {
         return (
           <>
             <AssetChart />
-            <AutoSnapshotScheduler />
-            <AssetSnapshotCreator />
-            <BankAccountManager />
-            <StockHoldingManager />
+            <UnifiedAssetSnapshot />
           </>
         );
 
