@@ -1,0 +1,506 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
+import { TrendingUp, Plus, Edit2, Trash2, RefreshCw } from 'lucide-react';
+
+export default function StockHoldingManager() {
+  const [holdings, setHoldings] = useState([]);
+  const [editingHolding, setEditingHolding] = useState(null);
+  const [isAdding, setIsAdding] = useState(false);
+  const [stockPrices, setStockPrices] = useState({});
+  const [isFetchingPrices, setIsFetchingPrices] = useState(false);
+  const [formData, setFormData] = useState({
+    ticker_symbol: '',
+    name: '',
+    quantity: '',
+    market: 'TSE'
+  });
+
+  useEffect(() => {
+    fetchHoldings();
+  }, []);
+
+  useEffect(() => {
+    // 保有銘柄が変更されたら自動で株価取得
+    if (holdings.length > 0) {
+      fetchAllStockPrices();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [holdings.length]);
+
+  const fetchHoldings = async () => {
+    const { data, error } = await supabase
+      .from('stock_holdings')
+      .select('*')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      setHoldings(data);
+    }
+  };
+
+  // 個別の株価取得
+  const fetchStockPrice = async (tickerSymbol) => {
+    try {
+      // Yahoo Finance API (注意: CORS制限がかかる可能性があるため、本番環境ではサーバーサイドでの実行推奨)
+      const response = await fetch(
+        `https://query1.finance.yahoo.com/v8/finance/chart/${tickerSymbol}?interval=1d&range=1d`
+      );
+      const data = await response.json();
+
+      if (data.chart && data.chart.result && data.chart.result[0]) {
+        const result = data.chart.result[0];
+        const quote = result.indicators.quote[0];
+        // 最新の終値を取得
+        const closePrice = quote.close[quote.close.length - 1];
+        
+        if (closePrice) {
+          return closePrice;
+        }
+      }
+    } catch (error) {
+      console.error(`株価取得エラー (${tickerSymbol}):`, error);
+    }
+    return null;
+  };
+
+  // 株価一括取得
+  const fetchAllStockPrices = async () => {
+    if (holdings.length === 0) return;
+
+    setIsFetchingPrices(true);
+    const prices = {};
+
+    try {
+      for (const holding of holdings) {
+        const price = await fetchStockPrice(holding.ticker_symbol);
+        if (price) {
+          prices[holding.id] = price;
+        }
+        // API制限対策（0.5秒待機）
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      setStockPrices(prices);
+      
+      // 取得した株価をデータベースに保存
+      for (const [holdingId, price] of Object.entries(prices)) {
+        await supabase
+          .from('stock_holdings')
+          .update({
+            current_price: price,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', holdingId);
+      }
+    } catch (error) {
+      console.error('株価取得エラー:', error);
+    }
+
+    setIsFetchingPrices(false);
+  };
+
+  const handleSave = async () => {
+    if (!formData.ticker_symbol || !formData.name || !formData.quantity) return;
+
+    if (editingHolding) {
+      // 更新
+      const { error } = await supabase
+        .from('stock_holdings')
+        .update({
+          ticker_symbol: formData.ticker_symbol,
+          name: formData.name,
+          quantity: parseFloat(formData.quantity),
+          market: formData.market,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingHolding.id);
+
+      if (!error) {
+        fetchHoldings();
+        handleCancel();
+      }
+    } else {
+      // 新規追加
+      const { error } = await supabase
+        .from('stock_holdings')
+        .insert([{
+          ticker_symbol: formData.ticker_symbol,
+          name: formData.name,
+          quantity: parseFloat(formData.quantity),
+          market: formData.market
+        }]);
+
+      if (!error) {
+        fetchHoldings();
+        handleCancel();
+      }
+    }
+  };
+
+  const handleEdit = (holding) => {
+    setEditingHolding(holding);
+    setFormData({
+      ticker_symbol: holding.ticker_symbol,
+      name: holding.name,
+      quantity: holding.quantity.toString(),
+      market: holding.market
+    });
+    setIsAdding(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('この銘柄を削除しますか？')) return;
+
+    const { error } = await supabase
+      .from('stock_holdings')
+      .update({ is_active: false })
+      .eq('id', id);
+
+    if (!error) {
+      fetchHoldings();
+    }
+  };
+
+  const handleCancel = () => {
+    setIsAdding(false);
+    setEditingHolding(null);
+    setFormData({ ticker_symbol: '', name: '', quantity: '', market: 'TSE' });
+  };
+
+  // 合計評価額の計算
+  const totalValue = holdings.reduce((sum, h) => {
+    const price = stockPrices[h.id] || h.current_price || 0;
+    return sum + (price * h.quantity);
+  }, 0);
+
+  return (
+    <div className="card">
+      <div className="card-title" style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <TrendingUp size={20} color="var(--primary)" />
+          株式保有
+        </div>
+        {holdings.length > 0 && (
+          <button
+            onClick={fetchAllStockPrices}
+            disabled={isFetchingPrices}
+            style={{
+              padding: '8px 12px',
+              background: 'var(--income)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '12px',
+              fontWeight: '600',
+              cursor: isFetchingPrices ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              opacity: isFetchingPrices ? 0.5 : 1
+            }}
+          >
+            <RefreshCw size={12} className={isFetchingPrices ? 'spinning' : ''} />
+            株価更新
+          </button>
+        )}
+      </div>
+
+      {/* 追加/編集フォーム */}
+      {isAdding && (
+        <div style={{
+          padding: '16px',
+          background: 'var(--bg-color)',
+          borderRadius: '12px',
+          border: '2px dashed var(--divider)',
+          marginBottom: '16px'
+        }}>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{
+              fontSize: '13px',
+              fontWeight: '600',
+              color: 'var(--text-secondary)',
+              marginBottom: '8px',
+              display: 'block'
+            }}>銘柄コード</label>
+            <input
+              type="text"
+              className="input-field"
+              placeholder="例: 7203.T (トヨタ), AAPL (Apple)"
+              value={formData.ticker_symbol}
+              onChange={(e) => setFormData({...formData, ticker_symbol: e.target.value.toUpperCase()})}
+            />
+            <div style={{
+              fontSize: '11px',
+              color: 'var(--text-tertiary)',
+              marginTop: '4px'
+            }}>
+              日本株: 4桁コード.T（例: 7203.T）、米国株: シンボル（例: AAPL）
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{
+              fontSize: '13px',
+              fontWeight: '600',
+              color: 'var(--text-secondary)',
+              marginBottom: '8px',
+              display: 'block'
+            }}>銘柄名</label>
+            <input
+              type="text"
+              className="input-field"
+              placeholder="例: トヨタ自動車"
+              value={formData.name}
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
+            />
+          </div>
+
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{
+              fontSize: '13px',
+              fontWeight: '600',
+              color: 'var(--text-secondary)',
+              marginBottom: '8px',
+              display: 'block'
+            }}>保有数</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              className="input-field"
+              placeholder="100"
+              value={formData.quantity}
+              onChange={(e) => setFormData({...formData, quantity: e.target.value})}
+            />
+          </div>
+
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{
+              fontSize: '13px',
+              fontWeight: '600',
+              color: 'var(--text-secondary)',
+              marginBottom: '8px',
+              display: 'block'
+            }}>市場</label>
+            <select
+              className="input-field"
+              value={formData.market}
+              onChange={(e) => setFormData({...formData, market: e.target.value})}
+            >
+              <option value="TSE">東京証券取引所</option>
+              <option value="NASDAQ">NASDAQ</option>
+              <option value="NYSE">NYSE</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={handleCancel}
+              style={{
+                flex: 1,
+                padding: '12px',
+                background: 'transparent',
+                border: '1px solid var(--divider)',
+                borderRadius: '10px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                color: 'var(--text-main)'
+              }}
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!formData.ticker_symbol || !formData.name || !formData.quantity}
+              style={{
+                flex: 1,
+                padding: '12px',
+                background: 'var(--primary)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '10px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: !formData.ticker_symbol || !formData.name || !formData.quantity ? 'not-allowed' : 'pointer',
+                opacity: !formData.ticker_symbol || !formData.name || !formData.quantity ? 0.5 : 1
+              }}
+            >
+              {editingHolding ? '更新' : '追加'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 追加ボタン */}
+      {!isAdding && (
+        <button
+          onClick={() => setIsAdding(true)}
+          style={{
+            width: '100%',
+            padding: '14px',
+            background: 'var(--primary)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '10px',
+            fontSize: '14px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            marginBottom: '16px'
+          }}
+        >
+          <Plus size={18} />
+          銘柄を追加
+        </button>
+      )}
+
+      {/* 保有銘柄リスト */}
+      {holdings.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">📈</div>
+          <div className="empty-state-text">保有銘柄が登録されていません</div>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+            {holdings.map(holding => {
+              const currentPrice = stockPrices[holding.id] || holding.current_price || 0;
+              const holdingValue = currentPrice * holding.quantity;
+
+              return (
+                <div
+                  key={holding.id}
+                  style={{
+                    padding: '16px',
+                    background: 'linear-gradient(135deg, rgba(52, 199, 89, 0.1) 0%, rgba(52, 199, 89, 0.05) 100%)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(52, 199, 89, 0.3)'
+                  }}
+                >
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '12px',
+                    marginBottom: '12px'
+                  }}>
+                    <TrendingUp size={20} color="var(--income)" style={{ marginTop: '2px' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        marginBottom: '4px',
+                        flexWrap: 'wrap'
+                      }}>
+                        <span style={{
+                          fontWeight: '700',
+                          fontSize: '15px',
+                          color: 'var(--text-main)'
+                        }}>
+                          {holding.name}
+                        </span>
+                        <span style={{
+                          padding: '2px 8px',
+                          background: 'var(--primary)',
+                          color: 'white',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: '700'
+                        }}>
+                          {holding.ticker_symbol}
+                        </span>
+                      </div>
+                      <div style={{
+                        fontSize: '13px',
+                        color: 'var(--text-secondary)',
+                        marginBottom: '8px'
+                      }}>
+                        {holding.market} · 保有数: {holding.quantity.toLocaleString()}株
+                      </div>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'auto 1fr',
+                        gap: '8px 12px',
+                        fontSize: '14px'
+                      }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>株価:</span>
+                        <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>
+                          {currentPrice > 0 ? `¥${currentPrice.toLocaleString()}` : '取得中...'}
+                        </span>
+                        <span style={{ color: 'var(--text-secondary)' }}>評価額:</span>
+                        <span style={{ fontWeight: '800', fontSize: '16px', color: 'var(--income)' }}>
+                          ¥{holdingValue.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button
+                        onClick={() => handleEdit(holding)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          padding: '8px',
+                          cursor: 'pointer',
+                          color: 'var(--primary)'
+                        }}
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(holding.id)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          padding: '8px',
+                          cursor: 'pointer',
+                          color: 'var(--expense)'
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 合計評価額 */}
+          <div style={{
+            padding: '16px',
+            background: 'linear-gradient(135deg, rgba(52, 199, 89, 0.2) 0%, rgba(52, 199, 89, 0.1) 100%)',
+            borderRadius: '12px',
+            border: '2px solid rgba(52, 199, 89, 0.4)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span style={{
+              fontSize: '15px',
+              fontWeight: '700',
+              color: 'var(--text-main)'
+            }}>
+              株式評価額合計
+            </span>
+            <span style={{
+              fontSize: '24px',
+              fontWeight: '800',
+              color: 'var(--income)',
+              letterSpacing: '-0.5px'
+            }}>
+              ¥{totalValue.toLocaleString()}
+            </span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

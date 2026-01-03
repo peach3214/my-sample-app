@@ -13,13 +13,17 @@ import TagSummary from './components/TagSummary';
 import BudgetTracker from './components/BudgetTracker';
 import PeriodFilter from './components/PeriodFilter';
 import TemplateManager from './components/TemplateManager';
+import BankAccountManager from './components/BankAccountManager';
+import StockHoldingManager from './components/StockHoldingManager';
+import AssetSnapshotCreator from './components/AssetSnapshotCreator';
+import AssetChart from './components/AssetChart';
 import { useNotifications } from './hooks/useNotifications';
-import { Home, PlusCircle, BarChart2, List, ChevronLeft, ChevronRight, Bookmark, Tag, Settings } from 'lucide-react';
+import { Home, PlusCircle, BarChart2, List, ChevronLeft, ChevronRight, Bookmark, Tag, Settings, Wallet } from 'lucide-react';
 
 function App() {
   const [transactions, setTransactions] = useState([]);
   const [currentDate, setCurrentDate] = useState(new Date()); // 表示中の月
-  const [activeTab, setActiveTab] = useState('home'); // 現在のタブ (home, input, analysis, history, settings)
+  const [activeTab, setActiveTab] = useState('home'); // 現在のタブ (home, input, analysis, history, assets, settings)
   const [editingTransaction, setEditingTransaction] = useState(null); // 編集中の取引
   const [showNotificationSettings, setShowNotificationSettings] = useState(false); // 通知設定モーダル
   const [showTagMaster, setShowTagMaster] = useState(false); // タグマスタモーダル
@@ -259,6 +263,16 @@ function App() {
           </>
         );
 
+      case 'assets':
+        return (
+          <>
+            <AssetChart />
+            <AssetSnapshotCreator />
+            <BankAccountManager />
+            <StockHoldingManager />
+          </>
+        );
+
       case 'settings':
         return (
           <div className="card">
@@ -422,6 +436,14 @@ function App() {
         >
           <List size={24} />
           <span>履歴</span>
+        </button>
+
+        <button 
+          className={`nav-item ${activeTab === 'assets' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('assets')}
+        >
+          <Wallet size={24} />
+          <span>資産</span>
         </button>
 
         <button 
