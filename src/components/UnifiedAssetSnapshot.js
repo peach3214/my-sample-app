@@ -1,180 +1,208 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
-import { Camera, Check, Building2, TrendingUp, Plus, X } from 'lucide-react';
+import { Camera, Check, Building2, TrendingUp, Plus, X, Calendar } from 'lucide-react';
 
 export default function UnifiedAssetSnapshot() {
   const [bankEntries, setBankEntries] = useState([{ id: Date.now(), name: '', amount: '' }]);
   const [stockEntries, setStockEntries] = useState([{ id: Date.now(), name: '', amount: '' }]);
-  const [exchangeRate, setExchangeRate] = useState('');
   const [snapshotDate, setSnapshotDate] = useState(new Date().toISOString().split('T')[0]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const addBankEntry = () => {
-    setBankEntries([...bankEntries, { id: Date.now(), name: '', amount: '' }]);
-  };
+  // 銀行エントリ操作
+  const addBankEntry = () => setBankEntries([...bankEntries, { id: Date.now(), name: '', amount: '' }]);
+  const removeBankEntry = (id) => bankEntries.length > 1 && setBankEntries(bankEntries.filter(e => e.id !== id));
+  const updateBankEntry = (id, field, value) => setBankEntries(bankEntries.map(e => e.id === id ? { ...e, [field]: value } : e));
 
-  const removeBankEntry = (id) => {
-    if (bankEntries.length > 1) {
-      setBankEntries(bankEntries.filter(e => e.id !== id));
-    }
-  };
-
-  const updateBankEntry = (id, field, value) => {
-    setBankEntries(bankEntries.map(e => 
-      e.id === id ? { ...e, [field]: value } : e
-    ));
-  };
-
-  const addStockEntry = () => {
-    setStockEntries([...stockEntries, { id: Date.now(), name: '', amount: '' }]);
-  };
-
-  const removeStockEntry = (id) => {
-    if (stockEntries.length > 1) {
-      setStockEntries(stockEntries.filter(e => e.id !== id));
-    }
-  };
-
-  const updateStockEntry = (id, field, value) => {
-    setStockEntries(stockEntries.map(e => 
-      e.id === id ? { ...e, [field]: value } : e
-    ));
-  };
-
-  const handleCreateSnapshot = async () => {
-    const validBankEntries = bankEntries.filter(e => e.name && e.amount);
-    const validStockEntries = stockEntries.filter(e => e.name && e.amount);
-
-    if (validBankEntries.length === 0 && validStockEntries.length === 0) {
-      alert('少なくとも1つの項目を入力してください');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const snapshots = [];
-
-      validBankEntries.forEach(entry => {
-        snapshots.push({
-          snapshot_date: snapshotDate,
-          asset_type: 'bank',
-          asset_id: entry.id,
-          asset_name: entry.name,
-          amount: parseFloat(entry.amount),
-          currency: 'JPY'
-        });
-      });
-
-      validStockEntries.forEach(entry => {
-        snapshots.push({
-          snapshot_date: snapshotDate,
-          asset_type: 'stock',
-          asset_id: entry.id,
-          asset_name: entry.name,
-          amount: parseFloat(entry.amount),
-          currency: 'JPY'
-        });
-      });
-
-      await supabase.from('asset_snapshots').delete().eq('snapshot_date', snapshotDate);
-      const { error } = await supabase.from('asset_snapshots').insert(snapshots);
-
-      if (!error) {
-        alert('スナップショットを作成しました！');
-        // 入力をクリア
-        setBankEntries([{ id: Date.now(), name: '', amount: '' }]);
-        setStockEntries([{ id: Date.now(), name: '', amount: '' }]);
-      } else {
-        alert('スナップショットの作成に失敗しました');
-      }
-    } catch (error) {
-      alert('エラーが発生しました');
-    }
-
-    setIsLoading(false);
-  };
+  // 株式エントリ操作
+  const addStockEntry = () => setStockEntries([...stockEntries, { id: Date.now(), name: '', amount: '' }]);
+  const removeStockEntry = (id) => stockEntries.length > 1 && setStockEntries(stockEntries.filter(e => e.id !== id));
+  const updateStockEntry = (id, field, value) => setStockEntries(stockEntries.map(e => e.id === id ? { ...e, [field]: value } : e));
 
   const totalBank = bankEntries.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
   const totalStock = stockEntries.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
   const grandTotal = totalBank + totalStock;
 
+  // 保存処理 (ロジックのみ新しいテーブル形式に対応)
+  const handleCreateSnapshot = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+
+    try {
+      const insertData = [];
+
+      bankEntries.forEach(bank => {
+        if (bank.name.trim() && bank.amount) {
+          insertData.push({
+            snapshot_date: snapshotDate,
+            asset_type: 'bank',
+            asset_name: bank.name,
+            amount: parseFloat(bank.amount),
+            currency: 'JPY'
+          });
+        }
+      });
+
+      stockEntries.forEach(stock => {
+        if (stock.name.trim() && stock.amount) {
+          insertData.push({
+            snapshot_date: snapshotDate,
+            asset_type: 'stock',
+            asset_name: stock.name,
+            amount: parseFloat(stock.amount),
+            currency: 'JPY'
+          });
+        }
+      });
+
+      if (insertData.length === 0) throw new Error('データが入力されていません');
+
+      const { error } = await supabase.from('asset_snapshots').insert(insertData);
+      if (error) throw error;
+
+      alert('スナップショットを記録しました');
+    } catch (err) {
+      alert('エラー: ' + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <div className="card">
-      <div className="card-title"><Camera size={20} color="var(--primary)" />資産スナップショット</div>
-
-      <div style={{ marginBottom: '20px' }}>
-        <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>日付</label>
-        <input type="date" className="input-field" value={snapshotDate} onChange={(e) => setSnapshotDate(e.target.value)} />
+    <div className="card" style={{ padding: '24px', borderRadius: '24px', background: 'var(--card-bg)' }}>
+      {/* ヘッダー */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
+        <div style={{ padding: '8px', background: 'rgba(0, 122, 255, 0.1)', borderRadius: '12px' }}>
+          <Camera size={22} color="var(--primary)" />
+        </div>
+        <h2 style={{ fontSize: '18px', fontWeight: '800', margin: 0, color: 'var(--text-main)' }}>資産スナップショット</h2>
       </div>
 
-      {/* 銀行残高入力 */}
-      <div style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Building2 size={18} color="var(--primary)" />銀行残高
-          </h3>
-          <button onClick={addBankEntry} style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Plus size={14} />追加
+      {/* 日付選択 */}
+      <div style={{ marginBottom: '24px', padding: '16px', background: 'var(--bg-color)', borderRadius: '16px', border: '1px solid var(--divider)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+          <Calendar size={14} /> 基準日
+        </div>
+        <input 
+          type="date" 
+          value={snapshotDate}
+          onChange={(e) => setSnapshotDate(e.target.value)}
+          style={{ width: '100%', border: 'none', background: 'transparent', fontSize: '16px', fontWeight: '700', color: 'var(--text-main)', outline: 'none' }}
+        />
+      </div>
+
+      {/* 銀行セクション */}
+      <div style={{ marginBottom: '28px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: '700', color: 'var(--text-main)' }}>
+            <Building2 size={18} color="var(--primary)" /> 銀行・現金
+          </div>
+          <button onClick={addBankEntry} style={{ width: '28px', height: '28px', borderRadius: '50%', border: 'none', background: 'var(--primary)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Plus size={16} />
           </button>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {bankEntries.map((entry, index) => (
-            <div key={entry.id} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <input type="text" className="input-field" placeholder="名称（例: 三菱UFJ）" value={entry.name} onChange={(e) => updateBankEntry(entry.id, 'name', e.target.value)} style={{ flex: 1, marginBottom: 0 }} />
-              <input type="number" inputMode="numeric" className="input-field" placeholder="金額" value={entry.amount} onChange={(e) => updateBankEntry(entry.id, 'amount', e.target.value)} style={{ width: '120px', marginBottom: 0 }} />
-              {bankEntries.length > 1 && (
-                <button onClick={() => removeBankEntry(entry.id)} style={{ background: 'transparent', border: 'none', padding: '8px', cursor: 'pointer', color: 'var(--expense)' }}>
-                  <X size={18} />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-        <div style={{ marginTop: '12px', padding: '12px', background: 'linear-gradient(135deg, rgba(0, 122, 255, 0.1) 0%, rgba(0, 122, 255, 0.05) 100%)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>預金合計</span>
-          <span style={{ fontWeight: '800', fontSize: '18px', color: 'var(--primary)' }}>¥{totalBank.toLocaleString()}</span>
-        </div>
+        
+        {bankEntries.map((entry) => (
+          <div key={entry.id} style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+            <input 
+              placeholder="名称"
+              value={entry.name}
+              onChange={(e) => updateBankEntry(entry.id, 'name', e.target.value)}
+              className="input-field"
+              style={{ flex: 1, margin: 0, padding: '10px 14px' }}
+            />
+            <input 
+              type="number"
+              placeholder="金額"
+              value={entry.amount}
+              onChange={(e) => updateBankEntry(entry.id, 'amount', e.target.value)}
+              className="input-field"
+              style={{ width: '120px', margin: 0, padding: '10px 14px', textAlign: 'right', fontWeight: '600' }}
+            />
+            <button onClick={() => removeBankEntry(entry.id)} style={{ padding: '0 4px', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer' }}>
+              <X size={18} />
+            </button>
+          </div>
+        ))}
       </div>
 
-      {/* 株式評価入力 */}
-      <div style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <TrendingUp size={18} color="var(--income)" />株式評価
-          </h3>
-          <button onClick={addStockEntry} style={{ background: 'var(--income)', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Plus size={14} />追加
+      {/* 株式セクション */}
+      <div style={{ marginBottom: '28px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: '700', color: 'var(--text-main)' }}>
+            <TrendingUp size={18} color="#34C759" /> 株式・投資信託
+          </div>
+          <button onClick={addStockEntry} style={{ width: '28px', height: '28px', borderRadius: '50%', border: 'none', background: '#34C759', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Plus size={16} />
           </button>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {stockEntries.map((entry, index) => (
-            <div key={entry.id} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <input type="text" className="input-field" placeholder="名称（例: トヨタ）" value={entry.name} onChange={(e) => updateStockEntry(entry.id, 'name', e.target.value)} style={{ flex: 1, marginBottom: 0 }} />
-              <input type="number" inputMode="numeric" className="input-field" placeholder="評価額" value={entry.amount} onChange={(e) => updateStockEntry(entry.id, 'amount', e.target.value)} style={{ width: '120px', marginBottom: 0 }} />
-              {stockEntries.length > 1 && (
-                <button onClick={() => removeStockEntry(entry.id)} style={{ background: 'transparent', border: 'none', padding: '8px', cursor: 'pointer', color: 'var(--expense)' }}>
-                  <X size={18} />
-                </button>
-              )}
-            </div>
-          ))}
+
+        {stockEntries.map((entry) => (
+          <div key={entry.id} style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+            <input 
+              placeholder="銘柄名"
+              value={entry.name}
+              onChange={(e) => updateStockEntry(entry.id, 'name', e.target.value)}
+              className="input-field"
+              style={{ flex: 1, margin: 0, padding: '10px 14px' }}
+            />
+            <input 
+              type="number"
+              placeholder="評価額"
+              value={entry.amount}
+              onChange={(e) => updateStockEntry(entry.id, 'amount', e.target.value)}
+              className="input-field"
+              style={{ width: '120px', margin: 0, padding: '10px 14px', textAlign: 'right', fontWeight: '600' }}
+            />
+            <button onClick={() => removeStockEntry(entry.id)} style={{ padding: '0 4px', border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer' }}>
+              <X size={18} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* 総資産グラデーションカード */}
+      <div style={{ 
+        padding: '20px', 
+        background: 'linear-gradient(135deg, #007AFF 0%, #0051D5 100%)', 
+        borderRadius: '20px', 
+        marginBottom: '24px', 
+        boxShadow: '0 10px 30px rgba(0, 122, 255, 0.3)',
+        color: 'white'
+      }}>
+        <div style={{ fontSize: '13px', fontWeight: '600', opacity: 0.8, marginBottom: '4px', textTransform: 'uppercase' }}>Total Assets</div>
+        <div style={{ fontSize: '32px', fontWeight: '900', letterSpacing: '-0.5px' }}>
+          <span style={{ fontSize: '20px', marginRight: '4px' }}>¥</span>
+          {grandTotal.toLocaleString()}
         </div>
-        <div style={{ marginTop: '12px', padding: '12px', background: 'linear-gradient(135deg, rgba(52, 199, 89, 0.1) 0%, rgba(52, 199, 89, 0.05) 100%)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>株式合計</span>
-          <span style={{ fontWeight: '800', fontSize: '18px', color: 'var(--income)' }}>¥{totalStock.toLocaleString()}</span>
+        <div style={{ display: 'flex', gap: '15px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: '12px' }}>
+          <div>銀行: ¥{totalBank.toLocaleString()}</div>
+          <div>株式: ¥{totalStock.toLocaleString()}</div>
         </div>
       </div>
 
-      {/* 総資産 */}
-      <div style={{ padding: '16px', background: 'linear-gradient(135deg, var(--primary) 0%, #0051D5 100%)', borderRadius: '12px', marginBottom: '16px', boxShadow: '0 4px 20px rgba(0, 122, 255, 0.3)' }}>
-        <div style={{ fontSize: '13px', fontWeight: '600', color: 'rgba(255,255,255,0.8)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>総資産</div>
-        <div style={{ fontSize: '32px', fontWeight: '800', color: 'white', letterSpacing: '-1px' }}>¥{grandTotal.toLocaleString()}</div>
-      </div>
-
-      <button onClick={handleCreateSnapshot} disabled={isLoading} style={{ width: '100%', padding: '16px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '700', cursor: isLoading ? 'not-allowed' : 'pointer', opacity: isLoading ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-        <Check size={20} />
-        {isLoading ? '作成中...' : 'スナップショットを作成'}
+      {/* 保存ボタン */}
+      <button 
+        onClick={handleCreateSnapshot} 
+        disabled={isLoading || grandTotal === 0}
+        style={{
+          width: '100%',
+          padding: '18px',
+          borderRadius: '16px',
+          border: 'none',
+          background: 'var(--text-main)',
+          color: 'white',
+          fontWeight: '700',
+          fontSize: '16px',
+          cursor: (isLoading || grandTotal === 0) ? 'not-allowed' : 'pointer',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '10px',
+          transition: 'transform 0.2s active'
+        }}
+      >
+        {isLoading ? 'Saving...' : <><Check size={20} /> スナップショットを記録する</>}
       </button>
     </div>
   );
