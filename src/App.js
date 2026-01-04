@@ -26,7 +26,6 @@ function App() {
   const [showTagMaster, setShowTagMaster] = useState(false); // タグマスタモーダル
   const [showTemplateManager, setShowTemplateManager] = useState(false); // テンプレート管理モーダル
   const [filteredHistoryTransactions, setFilteredHistoryTransactions] = useState([]); // フィルター済み履歴
-  const [historyPage, setHistoryPage] = useState(1); // 履歴ページ番号
   
   // 通知機能を初期化
   const { notifyTransactionAdded } = useNotifications();
@@ -77,14 +76,14 @@ function App() {
 
   const currentMonthStr = currentDate.toISOString().slice(0, 7);
 
-  // --- MEMOS (Moved to Top Level) ---
+  // --- MEMOS (Top Level) ---
 
   // 1. 現在選択されている月のデータ
   const monthlyTransactions = useMemo(() => {
     return transactions.filter(t => t.date.startsWith(currentMonthStr));
   }, [transactions, currentMonthStr]);
 
-  // 2. 履歴タブ用: 年月でのグループ化
+  // 2. 履歴タブ用: 年月でのグループ化 (未使用ですが構造維持のため残しています)
   const groupedByYearMonth = useMemo(() => {
     const groups = {};
     transactions.forEach(t => {
@@ -180,13 +179,6 @@ function App() {
         );
 
       case 'history':
-        // ページネーション計算 (HookではないのでここでOK)
-        const itemsPerPage = 3; 
-        const totalPages = Math.ceil(filteredGroups.length / itemsPerPage);
-        const startIndex = (historyPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        const paginatedGroups = filteredGroups.slice(startIndex, endIndex);
-
         return (
           <>
             <div className="card">
@@ -196,60 +188,12 @@ function App() {
                 transactions={transactions}
                 onFilteredTransactions={(filtered) => {
                   setFilteredHistoryTransactions(filtered);
-                  setHistoryPage(1);
                 }}
                 showSearchText={false}
               />
 
-              {filteredGroups.length > itemsPerPage && (
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '12px',
-                  background: 'var(--bg-color)',
-                  borderRadius: '8px',
-                  marginBottom: '16px'
-                }}>
-                  <button
-                    onClick={() => setHistoryPage(Math.max(1, historyPage - 1))}
-                    disabled={historyPage === 1}
-                    style={{
-                      padding: '8px 16px',
-                      background: historyPage === 1 ? 'var(--bg-elevated)' : 'var(--primary)',
-                      color: historyPage === 1 ? 'var(--text-tertiary)' : 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      cursor: historyPage === 1 ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    ◀ 前へ
-                  </button>
-                  <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)' }}>
-                    {historyPage} / {totalPages}
-                  </span>
-                  <button
-                    onClick={() => setHistoryPage(Math.min(totalPages, historyPage + 1))}
-                    disabled={historyPage === totalPages}
-                    style={{
-                      padding: '8px 16px',
-                      background: historyPage === totalPages ? 'var(--bg-elevated)' : 'var(--primary)',
-                      color: historyPage === totalPages ? 'var(--text-tertiary)' : 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      cursor: historyPage === totalPages ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    次へ ▶
-                  </button>
-                </div>
-              )}
-              
-              {paginatedGroups.map(group => (
+              {/* ページネーションボタンを削除し、filteredGroupsを直接表示 */}
+              {filteredGroups.map(group => (
                 <div key={group.yearMonth} style={{ marginBottom: '20px' }}>
                   <div style={{ 
                     fontSize: '16px', 
