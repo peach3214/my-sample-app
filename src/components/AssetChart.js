@@ -277,17 +277,7 @@ export default function AssetChart() {
       {/* 内訳グラフ */}
       <div style={{ width: '100%', height: '250px' }}>
         <ResponsiveContainer>
-          <AreaChart data={chartData}>
-            <defs>
-              <linearGradient id="colorBank" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#007AFF" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#007AFF" stopOpacity={0}/>
-              </linearGradient>
-              <linearGradient id="colorStock" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#34C759" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#34C759" stopOpacity={0}/>
-              </linearGradient>
-            </defs>
+          <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--divider)" />
             <XAxis 
               dataKey="date" 
@@ -311,25 +301,25 @@ export default function AssetChart() {
               formatter={(value) => `¥${value.toLocaleString()}`}
             />
             <Legend wrapperStyle={{ fontSize: '13px', paddingTop: '10px' }} />
-            <Area 
+            <Line 
               type="monotone" 
               dataKey="bank" 
-              stackId="1"
               stroke="#007AFF" 
               strokeWidth={2}
-              fill="url(#colorBank)" 
               name="預金"
+              dot={{ r: 3 }}
+              activeDot={{ r: 5 }}
             />
-            <Area 
+            <Line 
               type="monotone" 
               dataKey="stock" 
-              stackId="1"
               stroke="#34C759" 
               strokeWidth={2}
-              fill="url(#colorStock)" 
               name="株式"
+              dot={{ r: 3 }}
+              activeDot={{ r: 5 }}
             />
-          </AreaChart>
+          </LineChart>
         </ResponsiveContainer>
       </div>
     </div>

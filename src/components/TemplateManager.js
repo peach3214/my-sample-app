@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Bookmark, Plus, X, Edit2, Trash2 } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 
 export default function TemplateManager({ onClose }) {
   const [templates, setTemplates] = useState([]);
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [availableTags, setAvailableTags] = useState([]);
   const [formData, setFormData] = useState({
     name: '',
     type: 'expense',
@@ -16,7 +18,19 @@ export default function TemplateManager({ onClose }) {
 
   useEffect(() => {
     loadTemplates();
+    loadTags();
   }, []);
+
+  const loadTags = async () => {
+    const { data, error } = await supabase
+      .from('tags')
+      .select('*')
+      .order('name', { ascending: true });
+    
+    if (!error && data) {
+      setAvailableTags(data);
+    }
+  };
 
   const loadTemplates = () => {
     const saved = localStorage.getItem('transactionTemplates');
@@ -114,38 +128,35 @@ export default function TemplateManager({ onClose }) {
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px' }}>タグ（最大5個）</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {(() => {
-                    const savedTags = JSON.parse(localStorage.getItem('tagMaster') || '[]');
-                    return savedTags.map(tag => {
-                      const isSelected = formData.tagIds.includes(tag.id);
-                      return (
-                        <button
-                          key={tag.id}
-                          type="button"
-                          onClick={() => {
-                            if (isSelected) {
-                              setFormData({...formData, tagIds: formData.tagIds.filter(id => id !== tag.id)});
-                            } else if (formData.tagIds.length < 5) {
-                              setFormData({...formData, tagIds: [...formData.tagIds, tag.id]});
-                            }
-                          }}
-                          style={{
-                            padding: '8px 14px',
-                            borderRadius: '20px',
-                            border: isSelected ? 'none' : '1px solid var(--divider)',
-                            background: isSelected ? tag.color : 'transparent',
-                            color: isSelected ? 'white' : 'var(--text-main)',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease'
-                          }}
-                        >
-                          {tag.name}
-                        </button>
-                      );
-                    });
-                  })()}
+                  {availableTags.map(tag => {
+                    const isSelected = formData.tagIds.includes(tag.id);
+                    return (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setFormData({...formData, tagIds: formData.tagIds.filter(id => id !== tag.id)});
+                          } else if (formData.tagIds.length < 5) {
+                            setFormData({...formData, tagIds: [...formData.tagIds, tag.id]});
+                          }
+                        }}
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: '20px',
+                          border: isSelected ? 'none' : '1px solid var(--divider)',
+                          background: isSelected ? tag.color : 'transparent',
+                          color: isSelected ? 'white' : 'var(--text-main)',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        {tag.name}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -185,8 +196,7 @@ export default function TemplateManager({ onClose }) {
                       {template.tagIds && template.tagIds.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '8px' }}>
                           {template.tagIds.map(tagId => {
-                            const savedTags = JSON.parse(localStorage.getItem('tagMaster') || '[]');
-                            const tag = savedTags.find(t => t.id === tagId);
+                            const tag = availableTags.find(t => t.id === tagId);
                             return tag ? (
                               <span key={tagId} style={{ padding: '4px 8px', borderRadius: '6px', background: tag.color, color: 'white', fontSize: '11px', fontWeight: '600' }}>
                                 {tag.name}

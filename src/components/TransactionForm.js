@@ -39,12 +39,14 @@ export default function TransactionForm({ onAdded, existingTransactions }) {
   }, [existingTransactions, formData.location]);
 
   // テンプレートを適用
-  const handleApplyTemplate = (template) => {
+  const handleApplyTemplate = async (template) => {
     // テンプレートのタグIDから実際のタグオブジェクトを取得
-    const savedTags = JSON.parse(localStorage.getItem('tagMaster') || '[]');
-    const templateTags = (template.tagIds || []).map(tagId => 
-      savedTags.find(t => t.id === tagId)
-    ).filter(Boolean);
+    const { data: tags, error } = await supabase
+      .from('tags')
+      .select('*')
+      .in('id', template.tagIds || []);
+    
+    const templateTags = error ? [] : tags;
 
     setFormData({
       ...formData,
